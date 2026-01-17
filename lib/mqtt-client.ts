@@ -4,57 +4,134 @@ import mqtt from "mqtt"
 // Use inferred type to avoid import issues
 type MqttClientType = ReturnType<typeof mqtt.connect>
 let client: MqttClientType | null = null
+let connectionPromise: Promise<boolean> | null = null
 
 export const getMQTTClient = () => {
   if (client) return client
 
   // Connect to the public test broker via WebSockets
-  // Switching to HiveMQ Public Broker as Mosquitto can be flaky
-  // wss://broker.hivemq.com:8884/mqtt
-  const brokerUrl = "wss://broker.hivemq.com:8884/mqtt"
+  // Try multiple brokers for better reliability
+  const brokers = [
+    "wss://broker.hivemq.com:8884/mqtt",
+    "wss://test.mosquitto.org:8081",
+    "wss://mqtt.eclipseprojects.io:443"
+  ]
   
-  console.log("Connecting to MQTT broker:", brokerUrl)
+  let currentBrokerIndex = 0
   
-  client = mqtt.connect(brokerUrl, {
-    keepalive: 60,
-    clientId: `adld_client_${Math.random().toString(16).substring(2, 8)}`,
-    protocolId: "MQTT",
-    protocolVersion: 4,
-    clean: true,
-    reconnectPeriod: 1000,
-    connectTimeout: 30 * 1000,
-  })
+  const connectToBroker = (brokerUrl: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      console.log(`Attempting to connect to MQTT broker: ${brokerUrl}`)
+      
+      client = mqtt.connect(brokerUrl, {
+        keepalive: 60,
+        clientId: `adld_client_${Math.random().toString(16).substring(2, 8)}`,
+        protocolId: "MQTT",
+        protocolVersion: 4,
+        clean: true,
+        reconnectPeriod: 2000,
+        connectTimeout: 10 * 1000,
+      })
 
-  client.on("connect", () => {
-    console.log("MQTT Client Connected")
-  })
+      const timeout = setTimeout(() => {
+        console.error(`Connection timeout for ${brokerUrl}`)
+        if (client) {
+          client.end()
+          client = null
+        }
+        resolve(false)
+      }, 10000)
 
-  client.on("error", (err: Error) => {
-    console.error("MQTT Connection Error:", err)
-  })
+      client.on("connect", () => {
+        clearTimeout(timeout)
+        console.log(`✅ MQTT Client Connected to ${brokerUrl}`)
+        resolve(true)
+      })
 
-  client.on("offline", () => {
-    console.log("MQTT Client Offline")
-  })
+      client.on("error", (err: Error) => {
+        clearTimeout(timeout)
+        console.error(`❌ MQTT Connection Error for ${brokerUrl}:`, err.message)
+        if (client) {
+          client.end()
+          client = null
+        }
+        resolve(false)
+      })
 
+      client.on("offline", () => {
+        console.log("⚠️ MQTT Client Offline")
+      })
+    })
+  }
+
+  const tryConnect = async (): Promise<boolean> => {
+    if (connectionPromise) return connectionPromise
+
+    connectionPromise = (async () => {
+      for (let i = 0; i < brokers.length; i++) {
+        const connected = await connectToBroker(brokers[i])
+        if (connected) {
+          return true
+        }
+        console.log(`Failed to connect to ${brokers[i]}, trying next broker...`)
+      }
+      
+      console.error("❌ All MQTT brokers failed")
+      return false
+    })()
+
+    return connectionPromise
+  }
+
+  // Start connection attempts
+  tryConnect()
+  
   return client
 }
 
-export const publishData = (topic: string, message: any) => {
+export const publishData = async (topic: string, message: any): Promise<boolean> => {
   const mqttClient = getMQTTClient()
   
-  if (mqttClient.connected) {
+  // Wait for connection to be established
+  const isConnected = await new Promise<boolean>((resolve) => {
+    if (mqttClient?.connected) {
+      resolve(true)
+      return
+    }
+
+    let attempts = 0
+    const maxAttempts = 20 // 20 * 500ms = 10 seconds
+    
+    const checkConnection = () => {
+      attempts++
+      if (mqttClient?.connected) {
+        resolve(true)
+      } else if (attempts < maxAttempts) {
+        setTimeout(checkConnection, 500)
+      } else {
+        console.error("MQTT client failed to connect within timeout. Cannot publish.")
+        resolve(false)
+      }
+    }
+    
+    setTimeout(checkConnection, 100)
+  })
+
+  if (!isConnected || !mqttClient) {
+    console.warn("❌ MQTT client not connected. Cannot publish.")
+    return false
+  }
+
+  return new Promise((resolve) => {
     const payload = JSON.stringify(message)
     mqttClient.publish(topic, payload, { qos: 0 }, (error: Error | undefined) => {
       if (error) {
-        console.error("Publish error:", error)
+        console.error("❌ Publish error:", error)
+        resolve(false)
       } else {
-        console.log(`Published to ${topic}:`, payload)
+        console.log(`✅ Published to ${topic}:`, payload)
+        resolve(true)
       }
     })
-    return true
-  } else {
-    console.warn("MQTT client not connected. Cannot publish.")
-    return false
-  }
+  })
 }
