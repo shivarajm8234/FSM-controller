@@ -1,6 +1,6 @@
 "use client"
 
-import type { PowerDataPoint } from "@/lib/fsm-types"
+import type { PowerDataPoint, STATE_CONFIGS } from "@/lib/fsm-types"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine } from "recharts"
 import { TrendingUp } from "lucide-react"
 
@@ -10,6 +10,9 @@ interface PowerChartProps {
 }
 
 export function PowerChart({ data, averagePower }: PowerChartProps) {
+  // Calculate max power for dynamic Y-axis scaling
+  const maxPower = Math.max(60, ...data.map(d => d.power), averagePower * 1.2)
+  
   return (
     <div className="bg-card border border-border rounded-lg">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -19,7 +22,7 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
         </div>
         <div className="flex items-center gap-2 px-2 py-1 bg-secondary rounded">
           <span className="text-[10px] font-mono text-muted-foreground">AVG</span>
-          <span className="font-mono font-bold text-sm text-teal-400">{averagePower.toFixed(2)}</span>
+          <span className="font-mono font-bold text-sm text-emerald-400">{averagePower.toFixed(2)}</span>
           <span className="text-[10px] text-muted-foreground">mW</span>
         </div>
       </div>
@@ -30,8 +33,8 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
             <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="powerGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -45,8 +48,8 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
                 tick={{ fill: "#6b7280", fontSize: 9 }}
                 axisLine={{ stroke: "#27272a" }}
                 tickLine={false}
-                domain={[0, 60]}
-                ticks={[0, 15, 30, 45, 60]}
+                domain={[0, Math.ceil(maxPower / 10) * 10]} // Round up to nearest 10
+                ticks={generateYAxisTicks(maxPower)}
               />
               <Tooltip
                 contentStyle={{
@@ -57,14 +60,15 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
                   fontFamily: "monospace",
                 }}
                 labelStyle={{ color: "#71717a" }}
-                itemStyle={{ color: "#2dd4bf" }}
+                itemStyle={{ color: "#34d399" }}
                 formatter={(value: number) => [`${value} mW`, "Power"]}
+                labelFormatter={(label) => `Time: ${label}`}
               />
               <ReferenceLine y={averagePower} stroke="#6b7280" strokeDasharray="3 3" strokeWidth={1} />
               <Area
                 type="stepAfter"
                 dataKey="power"
-                stroke="#2dd4bf"
+                stroke="#34d399"
                 strokeWidth={1.5}
                 fill="url(#powerGradient)"
                 animationDuration={300}
@@ -75,4 +79,13 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
       </div>
     </div>
   )
+}
+
+// Helper function to generate appropriate Y-axis ticks
+function generateYAxisTicks(maxPower: number): number[] {
+  const roundedMax = Math.ceil(maxPower / 10) * 10
+  const tickCount = 5
+  const step = roundedMax / (tickCount - 1)
+  
+  return Array.from({ length: tickCount }, (_, i) => Math.round(i * step))
 }

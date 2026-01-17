@@ -16,7 +16,7 @@ import { publishData } from "@/lib/mqtt-client"
 const generateId = () => Math.random().toString(36).substring(2, 9)
 
 export function useFSMController() {
-  const [currentState, setCurrentState] = useState<FSMState>("SLEEP")
+  const [currentState, setCurrentState] = useState<FSMState>("BOOT")
   const [isAutoMode, setIsAutoMode] = useState(false)
   const [sensorData, setSensorData] = useState<SensorData>({
     temperature: 22,
@@ -29,6 +29,10 @@ export function useFSMController() {
   const [config, setConfig] = useState<FSMConfig>({
     sleepInterval: 3,
     senseThreshold: 30,
+    temperatureThreshold: 40,
+    humidityThreshold: 80,
+    pm10Threshold: 50,
+    pm25Threshold: 25,
     transmitRetries: 3,
     errorRecoveryTime: 2,
   })
@@ -64,7 +68,7 @@ export function useFSMController() {
   )
 
   const reset = useCallback(() => {
-    setCurrentState("SLEEP")
+    setCurrentState("BOOT")
     setSensorData({
       temperature: 22,
       humidity: 45,
@@ -73,7 +77,7 @@ export function useFSMController() {
     })
     setPowerHistory([])
     setEventLog([])
-    addEvent(null, "SLEEP", "System reset - entering SLEEP mode")
+    addEvent(null, "BOOT", "System reset - entering BOOT mode")
   }, [addEvent])
 
   // Auto mode state machine logic
@@ -90,31 +94,59 @@ export function useFSMController() {
         let nextState: FSMState = prevState
         let message = ""
 
-        // Simulate random errors (5% chance)
-        if (Math.random() < 0.05 && prevState !== "ERROR" && prevState !== "SLEEP") {
+        // Simulate random errors (5% chance) for PROCESS and TRANSMIT states
+        if (Math.random() < 0.05 && (prevState === "PROCESS" || prevState === "TRANSMIT")) {
           nextState = "ERROR"
           message = "Random fault detected"
         } else {
           switch (prevState) {
+            case "BOOT":
+              nextState = "SELF_TEST"
+              message = "Boot sequence completed"
+              break
+            case "SELF_TEST":
+              // Simulate self-test success (90%) or failure (10%)
+              if (Math.random() < 0.9) {
+                nextState = "SLEEP"
+                message = "Self-test passed successfully"
+              } else {
+                nextState = "ERROR"
+                message = "Self-test failed"
+              }
+              break
             case "SLEEP":
               nextState = "WAKE"
               message = "Wake timer triggered"
               break
             case "WAKE":
               nextState = "SENSE"
-              message = "System initialized"
+              message = "System activated"
               break
             case "SENSE":
+              nextState = "PROCESS"
+              message = "Data acquired, processing"
+              break
+            case "PROCESS":
               nextState = "TRANSMIT"
-              message = "Data acquired, ready to transmit"
+              message = "Data processed, ready to transmit"
               break
             case "TRANSMIT":
-              nextState = "SLEEP"
-              message = "Transmission complete"
+              // Simulate transmission success (85%) or failure (15%)
+              if (Math.random() < 0.85) {
+                nextState = "SLEEP"
+                message = "Transmission successful"
+              } else {
+                nextState = "ERROR"
+                message = "Transmission failed"
+              }
               break
             case "ERROR":
+              nextState = "REPAIR"
+              message = "Entering repair mode"
+              break
+            case "REPAIR":
               nextState = "SLEEP"
-              message = "Error recovered, entering sleep"
+              message = "Repair completed, entering sleep"
               break
           }
         }
@@ -128,15 +160,23 @@ export function useFSMController() {
 
     const getDelay = () => {
       switch (currentState) {
+        case "BOOT":
+          return 1000
+        case "SELF_TEST":
+          return 2000
         case "SLEEP":
           return config.sleepInterval * 1000
         case "WAKE":
-          return 1000
+          return 500
         case "SENSE":
           return 1500
+        case "PROCESS":
+          return 1000
         case "TRANSMIT":
-          return 2000
+          return 3000 // Increased from 2000ms to 3000ms for better MQTT transmission
         case "ERROR":
+          return 1000
+        case "REPAIR":
           return config.errorRecoveryTime * 1000
         default:
           return 2000
@@ -176,8 +216,18 @@ export function useFSMController() {
             const latest = data[0]
             const p1 = latest.sensordatavalues.find((v: any) => v.value_type === "P1")
             const p2 = latest.sensordatavalues.find((v: any) => v.value_type === "P2")
-            if (p1) changes.pm10 = parseFloat(p1.value)
-            if (p2) changes.pm25 = parseFloat(p2.value)
+            if (p1) {
+              const basePM10 = parseFloat(p1.value)
+              // Add small realistic variation (±5%)
+              const variation = (Math.random() - 0.5) * 0.1 * basePM10
+              changes.pm10 = Math.max(0, basePM10 + variation)
+            }
+            if (p2) {
+              const basePM25 = parseFloat(p2.value)
+              // Add small realistic variation (±5%)
+              const variation = (Math.random() - 0.5) * 0.1 * basePM25
+              changes.pm25 = Math.max(0, basePM25 + variation)
+            }
           }
         }
 
@@ -188,12 +238,23 @@ export function useFSMController() {
             const latest = data[0]
             const temp = latest.sensordatavalues.find((v: any) => v.value_type === "temperature")
             const hum = latest.sensordatavalues.find((v: any) => v.value_type === "humidity")
-            if (temp) changes.temperature = parseFloat(temp.value)
-            if (hum) changes.humidity = parseFloat(hum.value)
+            if (temp) {
+              const baseTemp = parseFloat(temp.value)
+              // Add small realistic variation (±0.5°C)
+              const variation = (Math.random() - 0.5) * 1.0
+              changes.temperature = baseTemp + variation
+            }
+            if (hum) {
+              const baseHum = parseFloat(hum.value)
+              // Add small realistic variation (±2%)
+              const variation = (Math.random() - 0.5) * 4.0
+              changes.humidity = Math.max(0, Math.min(100, baseHum + variation))
+            }
           }
         }
 
         setSensorData(prev => ({ ...prev, ...changes }))
+        console.log("Sensor data updated with variation:", changes)
 
       } catch (error) {
         console.error("Failed to fetch sensor data:", error)
@@ -205,9 +266,18 @@ export function useFSMController() {
       fetchRealData()
     }
 
+    // In auto mode, fetch sensor data more frequently during active sensing states
+    let sensorFetchInterval: NodeJS.Timeout | null = null
+    if (isAutoMode && (currentState === "SENSE" || currentState === "PROCESS")) {
+      console.log("Starting frequent sensor fetch in auto mode")
+      // Fetch every 2 seconds during SENSE and PROCESS states in auto mode
+      sensorFetchInterval = setInterval(fetchRealData, 2000)
+    }
+
     const updateSensors = () => {
       setSensorData((prev) => {
-        const isCharging = currentState === "SLEEP"
+        // Consider charging in low-power states: SLEEP, BOOT, SELF_TEST
+        const isCharging = currentState === "SLEEP" || currentState === "BOOT" || currentState === "SELF_TEST"
         const powerDrain = STATE_CONFIGS[currentState].power / 100
 
         // Only simulate battery changes. 
@@ -221,12 +291,17 @@ export function useFSMController() {
     }
 
     sensorTimerRef.current = setInterval(updateSensors, 500)
+    
     return () => {
       if (sensorTimerRef.current) {
         clearInterval(sensorTimerRef.current)
       }
+      if (sensorFetchInterval) {
+        clearInterval(sensorFetchInterval)
+        console.log("Stopped frequent sensor fetch")
+      }
     }
-  }, [currentState])
+  }, [currentState, isAutoMode])
 
   // Power history tracking
   useEffect(() => {
@@ -262,20 +337,35 @@ export function useFSMController() {
   // MQTT Transmission
   useEffect(() => {
     if (currentState === "TRANSMIT") {
-      const success = publishData("adld/sensor/data", sensorData)
-      if (success) {
-        // Optional: Add an event log or toast if needed, but the UI already shows "TRANSMIT" state
-        console.log("Data transmitted via MQTT")
-      }
+      console.log("Entering TRANSMIT state, preparing to send sensor data:", sensorData)
+      
+      // Add a small delay to ensure MQTT client is ready
+      const transmitTimer = setTimeout(async () => {
+        try {
+          const success = await publishData("adld/sensor/data", sensorData)
+          if (success) {
+            console.log("✅ Data transmitted via MQTT successfully")
+            addEvent("TRANSMIT", "SLEEP", "MQTT transmission completed")
+          } else {
+            console.warn("⚠️ MQTT transmission failed, but continuing state flow")
+            addEvent("TRANSMIT", "SLEEP", "MQTT transmission failed, continuing")
+          }
+        } catch (error) {
+          console.error("❌ MQTT transmission error:", error)
+          addEvent("TRANSMIT", "SLEEP", "MQTT transmission error, continuing")
+        }
+      }, 500) // Wait 500ms before transmitting
+      
+      return () => clearTimeout(transmitTimer)
     }
-  }, [currentState, sensorData])
+  }, [currentState, sensorData, addEvent])
 
   const averagePower =
     powerHistory.length > 0
       ? powerHistory.reduce((sum, p) => sum + p.power, 0) / powerHistory.length
       : STATE_CONFIGS[currentState].power
 
-  const isCharging = currentState === "SLEEP"
+  const isCharging = currentState === "SLEEP" || currentState === "BOOT" || currentState === "SELF_TEST"
 
   return {
     currentState,

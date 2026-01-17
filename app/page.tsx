@@ -8,6 +8,7 @@ import { ControlPanel } from "@/components/control-panel"
 import { StateInfo } from "@/components/state-info"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useFSMController } from "@/hooks/use-fsm-controller"
+import { STATE_CONFIGS, type FSMState } from "@/lib/fsm-types"
 import { Cpu, Activity } from "lucide-react"
 
 export default function Home() {
@@ -28,7 +29,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background grid-pattern">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+      <div className="max-w-screen-2xl mx-auto p-3 md:p-4 lg:p-6 space-y-4">
         {/* Header */}
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -56,20 +57,20 @@ export default function Home() {
         <StateInfo currentState={currentState} />
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
           {/* FSM Diagram - Main focus area */}
-          <div className="lg:col-span-8">
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xs font-mono text-muted-foreground tracking-wider">STATE MACHINE TOPOLOGY</h2>
-                <div className="flex items-center gap-4">
-                  {["SLEEP", "WAKE", "SENSE", "TRANSMIT", "ERROR"].map((state) => (
+          <div className="xl:col-span-9">
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-sm font-mono text-muted-foreground tracking-wider">STATE MACHINE TOPOLOGY</h2>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {["BOOT", "SELF_TEST", "SLEEP", "WAKE", "SENSE", "PROCESS", "TRANSMIT", "ERROR", "REPAIR"].map((state) => (
                     <div key={state} className="flex items-center gap-1.5">
                       <div
-                        className="w-2 h-2 rounded-sm"
-                        style={{ backgroundColor: state === currentState ? "oklch(0.7 0.15 170)" : "var(--muted)" }}
+                        className="w-3 h-3 rounded-sm"
+                        style={{ backgroundColor: state === currentState ? STATE_CONFIGS[state as FSMState].hexColor : "var(--muted)" }}
                       />
-                      <span className="text-[9px] font-mono text-muted-foreground">{state}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">{state}</span>
                     </div>
                   ))}
                 </div>
@@ -82,7 +83,7 @@ export default function Home() {
           </div>
 
           {/* Right Sidebar - Controls & Sensors */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="xl:col-span-3 space-y-6">
             <ControlPanel
               currentState={currentState}
               isAutoMode={isAutoMode}
@@ -97,7 +98,7 @@ export default function Home() {
         </div>
 
         {/* Bottom Row - Charts and Logs */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <PowerChart data={powerHistory} averagePower={averagePower} />
           <EventLog events={eventLog} />
         </div>

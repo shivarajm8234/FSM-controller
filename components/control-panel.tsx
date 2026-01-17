@@ -121,14 +121,59 @@ export function ControlPanel({
 
             <div className="space-y-2">
               <div className="flex justify-between">
-                <Label className="text-[10px] font-mono text-muted-foreground">SENSE THRESHOLD</Label>
-                <span className="text-xs font-mono text-foreground">{config.senseThreshold}°C</span>
+                <Label className="text-[10px] font-mono text-muted-foreground">TEMP THRESHOLD</Label>
+                <span className="text-xs font-mono text-foreground">{config.temperatureThreshold}°C</span>
               </div>
               <Slider
-                value={[config.senseThreshold]}
-                onValueChange={([value]) => onConfigChange({ senseThreshold: value })}
+                value={[config.temperatureThreshold]}
+                onValueChange={([value]) => onConfigChange({ temperatureThreshold: value })}
+                min={-10}
+                max={50}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label className="text-[10px] font-mono text-muted-foreground">HUMIDITY THRESHOLD</Label>
+                <span className="text-xs font-mono text-foreground">{config.humidityThreshold}%</span>
+              </div>
+              <Slider
+                value={[config.humidityThreshold]}
+                onValueChange={([value]) => onConfigChange({ humidityThreshold: value })}
                 min={20}
-                max={40}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label className="text-[10px] font-mono text-muted-foreground">PM10 THRESHOLD</Label>
+                <span className="text-xs font-mono text-foreground">{config.pm10Threshold} µg/m³</span>
+              </div>
+              <Slider
+                value={[config.pm10Threshold]}
+                onValueChange={([value]) => onConfigChange({ pm10Threshold: value })}
+                min={10}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label className="text-[10px] font-mono text-muted-foreground">PM2.5 THRESHOLD</Label>
+                <span className="text-xs font-mono text-foreground">{config.pm25Threshold} µg/m³</span>
+              </div>
+              <Slider
+                value={[config.pm25Threshold]}
+                onValueChange={([value]) => onConfigChange({ pm25Threshold: value })}
+                min={5}
+                max={50}
                 step={1}
                 className="w-full"
               />

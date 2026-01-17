@@ -1,4 +1,4 @@
-export type FSMState = "SLEEP" | "WAKE" | "SENSE" | "TRANSMIT" | "ERROR"
+export type FSMState = "BOOT" | "SELF_TEST" | "SLEEP" | "WAKE" | "SENSE" | "PROCESS" | "TRANSMIT" | "ERROR" | "REPAIR"
 
 export interface StateConfig {
   name: FSMState
@@ -36,11 +36,33 @@ export interface EventLogEntry {
 export interface FSMConfig {
   sleepInterval: number
   senseThreshold: number
+  temperatureThreshold: number
+  humidityThreshold: number
+  pm10Threshold: number
+  pm25Threshold: number
   transmitRetries: number
   errorRecoveryTime: number
 }
 
 export const STATE_CONFIGS: Record<FSMState, StateConfig> = {
+  BOOT: {
+    name: "BOOT",
+    power: 10,
+    description: "System initialization and startup",
+    color: "text-gray-400",
+    bgColor: "bg-gray-500/10",
+    borderColor: "border-gray-500/50",
+    hexColor: "#9ca3af",
+  },
+  SELF_TEST: {
+    name: "SELF_TEST",
+    power: 8,
+    description: "Hardware and software diagnostics",
+    color: "text-gray-400",
+    bgColor: "bg-gray-500/10",
+    borderColor: "border-gray-500/50",
+    hexColor: "#9ca3af",
+  },
   SLEEP: {
     name: "SLEEP",
     power: 0.1,
@@ -53,20 +75,29 @@ export const STATE_CONFIGS: Record<FSMState, StateConfig> = {
   WAKE: {
     name: "WAKE",
     power: 5,
-    description: "System initialization sequence",
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/10",
-    borderColor: "border-amber-500/50",
-    hexColor: "#fbbf24",
+    description: "System activation from sleep",
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/50",
+    hexColor: "#34d399",
   },
   SENSE: {
     name: "SENSE",
     power: 15,
     description: "Active sensor data acquisition",
-    color: "text-teal-400",
-    bgColor: "bg-teal-500/10",
-    borderColor: "border-teal-500/50",
-    hexColor: "#2dd4bf",
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/50",
+    hexColor: "#34d399",
+  },
+  PROCESS: {
+    name: "PROCESS",
+    power: 20,
+    description: "Data processing and validation",
+    color: "text-emerald-400",
+    bgColor: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/50",
+    hexColor: "#34d399",
   },
   TRANSMIT: {
     name: "TRANSMIT",
@@ -80,18 +111,31 @@ export const STATE_CONFIGS: Record<FSMState, StateConfig> = {
   ERROR: {
     name: "ERROR",
     power: 2,
-    description: "Fault recovery procedure",
-    color: "text-rose-400",
-    bgColor: "bg-rose-500/10",
-    borderColor: "border-rose-500/50",
+    description: "Fault detection and recovery",
+    color: "text-red-400",
+    bgColor: "bg-red-500/10",
+    borderColor: "border-red-500/50",
     hexColor: "#fb7185",
+  },
+  REPAIR: {
+    name: "REPAIR",
+    power: 3,
+    description: "System recovery and maintenance",
+    color: "text-amber-400",
+    bgColor: "bg-amber-500/10",
+    borderColor: "border-amber-500/50",
+    hexColor: "#fbbf24",
   },
 }
 
 export const VALID_TRANSITIONS: Record<FSMState, FSMState[]> = {
+  BOOT: ["SELF_TEST"],
+  SELF_TEST: ["SLEEP", "ERROR"],
   SLEEP: ["WAKE"],
-  WAKE: ["SENSE", "ERROR", "SLEEP"],
-  SENSE: ["TRANSMIT", "ERROR", "SLEEP"],
+  WAKE: ["SENSE"],
+  SENSE: ["PROCESS"],
+  PROCESS: ["TRANSMIT", "ERROR"],
   TRANSMIT: ["SLEEP", "ERROR"],
-  ERROR: ["SLEEP", "WAKE"],
+  ERROR: ["REPAIR"],
+  REPAIR: ["SLEEP"],
 }

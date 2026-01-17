@@ -3,7 +3,7 @@
 import type React from "react"
 import { motion } from "framer-motion"
 import { type FSMState, STATE_CONFIGS, VALID_TRANSITIONS } from "@/lib/fsm-types"
-import { Moon, Sun, Activity, Wifi, AlertTriangle } from "lucide-react"
+import { Moon, Sun, Activity, Wifi, AlertTriangle, Zap, Wrench, CheckCircle } from "lucide-react"
 
 interface FSMDiagramProps {
   currentState: FSMState
@@ -11,22 +11,30 @@ interface FSMDiagramProps {
 }
 
 const STATE_POSITIONS: Record<FSMState, { x: number; y: number }> = {
-  SLEEP: { x: 100, y: 180 },
-  WAKE: { x: 250, y: 100 },
-  SENSE: { x: 400, y: 100 },
-  TRANSMIT: { x: 550, y: 180 },
-  ERROR: { x: 325, y: 280 },
+  BOOT: { x: 100, y: 120 },
+  SELF_TEST: { x: 280, y: 120 },
+  SLEEP: { x: 480, y: 120 },
+  WAKE: { x: 680, y: 120 },
+  SENSE: { x: 880, y: 120 },
+  PROCESS: { x: 1080, y: 120 },
+  TRANSMIT: { x: 1280, y: 120 },
+  ERROR: { x: 750, y: 300 },
+  REPAIR: { x: 980, y: 300 },
 }
 
 const STATE_ICONS: Record<FSMState, React.ReactNode> = {
-  SLEEP: <Moon className="w-4 h-4" />,
-  WAKE: <Sun className="w-4 h-4" />,
-  SENSE: <Activity className="w-4 h-4" />,
-  TRANSMIT: <Wifi className="w-4 h-4" />,
-  ERROR: <AlertTriangle className="w-4 h-4" />,
+  BOOT: <Zap className="w-6 h-6" />,
+  SELF_TEST: <CheckCircle className="w-6 h-6" />,
+  SLEEP: <Moon className="w-6 h-6" />,
+  WAKE: <Sun className="w-6 h-6" />,
+  SENSE: <Activity className="w-6 h-6" />,
+  PROCESS: <Activity className="w-6 h-6" />,
+  TRANSMIT: <Wifi className="w-6 h-6" />,
+  ERROR: <AlertTriangle className="w-6 h-6" />,
+  REPAIR: <Wrench className="w-6 h-6" />,
 }
 
-const HEXAGON_PATH = "M 0 -32 L 28 -16 L 28 16 L 0 32 L -28 16 L -28 -16 Z"
+const HEXAGON_PATH = "M 0 -55 L 48 -27 L 48 27 L 0 55 L -48 27 L -48 -27 Z"
 
 export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
   const renderTransitionArrow = (from: FSMState, to: FSMState) => {
@@ -37,8 +45,8 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
     const dy = toPos.y - fromPos.y
     const len = Math.sqrt(dx * dx + dy * dy)
 
-    const offsetStart = 38
-    const offsetEnd = 42
+    const offsetStart = 60
+    const offsetEnd = 65
 
     const startX = fromPos.x + (dx / len) * offsetStart
     const startY = fromPos.y + (dy / len) * offsetStart
@@ -89,7 +97,7 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
 
   return (
     <div className="w-full overflow-x-auto">
-      <svg viewBox="0 0 650 380" className="w-full min-w-[500px] h-auto">
+      <svg viewBox="0 0 1400 420" className="w-full min-w-[1000px] h-auto">
         <defs>
           <filter id="glow-filter" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="coloredBlur" />
@@ -155,26 +163,26 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
               />
 
               {/* Inner content */}
-              <foreignObject x={-24} y={-24} width={48} height={48} style={{ pointerEvents: "none" }}>
-                <div className="flex flex-col items-center justify-center h-full gap-0.5">
+              <foreignObject x={-40} y={-40} width={80} height={80} style={{ pointerEvents: "none" }}>
+                <div className="flex flex-col items-center justify-center h-full gap-2">
                   <div style={{ color: config.hexColor }}>{STATE_ICONS[state]}</div>
-                  <span className="text-[9px] font-mono font-semibold tracking-wide" style={{ color: config.hexColor }}>
+                  <span className="text-[12px] font-mono font-semibold tracking-wide" style={{ color: config.hexColor }}>
                     {state}
                   </span>
                 </div>
               </foreignObject>
 
               {/* Power label below */}
-              <text y={48} textAnchor="middle" className="text-[10px] fill-muted-foreground font-mono">
+              <text y={70} textAnchor="middle" className="text-[12px] fill-muted-foreground font-mono">
                 {config.power}mW
               </text>
 
               {/* Status indicator */}
               {isActive && (
                 <motion.circle
-                  cx={22}
-                  cy={-26}
-                  r={4}
+                  cx={38}
+                  cy={-45}
+                  r={6}
                   fill={config.hexColor}
                   animate={{
                     opacity: [1, 0.4, 1],
