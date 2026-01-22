@@ -259,7 +259,7 @@ export function useFSMController() {
     const fetchRealData = async () => {
       try {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000)
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
         
         // Fetch from the "rich" sensor we found (ID: 71641)
         const [richSensorRes] = await Promise.all([
@@ -341,13 +341,17 @@ export function useFSMController() {
         setSensorData(prev => ({ ...prev, ...changes }))
         console.log("Sensor data updated with variation:", changes)
 
-      } catch (error) {
-        console.error("Failed to fetch sensor data:", error)
+      } catch (error: any) {
+        if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+           console.warn("Sensor data fetch timed out")
+        } else {
+           console.error("Failed to fetch sensor data:", error)
+        }
       }
     }
 
-    // Fetch immediately when entering SENSE state
-    if (currentState === "SENSE") {
+    // Fetch immediately when entering SENSE or BOOT state (to discover sensors early)
+    if (currentState === "SENSE" || currentState === "BOOT") {
       fetchRealData()
     }
 
