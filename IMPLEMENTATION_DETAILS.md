@@ -104,3 +104,52 @@ Data is pushed to a **HiveMQ Serverless Broker** via WebSockets (`wss`).
 ## 6. ⚡ Power Simulation
 - Battery drain is simulated based on the power consumption of the current state.
 - **Deep Sleep Optimization**: Sleep interval dynamically doubles if battery < 20% to conserve energy.
+
+---
+
+## 7. 🛠️ System Operation Modes (Ways of Working)
+
+The project handles two distinct operational workflows:
+
+### A. 🤖 Autonomous Mode (Auto)
+This is the standard operating mode for an IoT node.
+1.  **Cycle**: The system automatically transitions through `BOOT -> SELF_TEST -> SLEEP -> WAKE -> SENSE -> PROCESS -> TRANSMIT -> SLEEP`.
+2.  **Smart Adaptation**:
+    *   **Low Battery (<10%)**: Skips `TRANSMIT` state to save power.
+    *   **Low Battery (<20%)**: Extends `SLEEP` duration.
+    *   **Poor Air Quality**: Reduces `SLEEP` duration to sample more frequently.
+3.  **Self-healing**: If an error occurs, the system automatically enters `REPAIR` and then returns to `SLEEP`.
+
+### B. 🕹️ Manual Control Mode
+Designed for maintenance, debugging, and demonstration.
+1.  **User Control**: The automatic timer is disabled. The user acts as the clock signal, clicking buttons to transition between valid states.
+2.  **Visualization**: Allows users to inspect sensor data and power consumption at each specific step of the cycle without time pressure.
+3.  **Override**: Users can force a system reset or inject faults at will.
+
+---
+
+## 8. ⚠️ Error Scenarios (Ways of Entering ERROR State)
+
+The FSM is designed to be robust and handle various failure modes. The system enters the **ERROR** state in the following ways:
+
+### 1. 🎲 Simulated Random Faults
+*   **Probability**: 5% chance.
+*   **Trigger States**: `PROCESS` state.
+*   **Mechanism**: A random number generator simulates hardware glitches or bit flips during data processing.
+
+### 2. 📡 MQTT Transmission Failure
+*   **Trigger State**: `TRANSMIT`.
+*   **Mechanism**: If the MQTT broker is unreachable or the connection drops during dispatch, the system catches the error and transitions to `ERROR` instead of `SLEEP`.
+*   **Reporting**: The error context ("MQTT transmission failed") is saved to the event log.
+
+### 3. 🚦 Self-Test Failure
+*   **Probability**: 10% chance.
+*   **Trigger State**: `SELF_TEST`.
+*   **Mechanism**: Simulates a startup hardware check failure (e.g., sensor disconnected, memory error).
+
+### 4. 🛑 Manual Fault Injection
+*   **Method**: Clicking the "FORCE SYSTEM FAULT" button in the Control Panel (Manual Mode).
+*   **Purpose**: Validates the system's ability to capture errors and publish "FAULT" status telemetry to the MQTT broker.
+
+### 5. 📉 Critical Battery (Concept)
+*   *Note*: Currently, low battery triggers aggressive power saving (Skipping TX), but in a real-world scenario, dropping below a critical voltage (e.g., 0%) would force a shutdown or error state until recharged.
