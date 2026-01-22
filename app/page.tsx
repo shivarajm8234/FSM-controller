@@ -26,6 +26,7 @@ export default function Home() {
     reset,
     setConfig,
     connectedSensors,
+    triggerFault,
   } = useFSMController()
 
   return (
@@ -93,6 +94,7 @@ export default function Home() {
               onReset={reset}
               config={config}
               onConfigChange={setConfig}
+              onTriggerFault={triggerFault}
             />
             <SensorDisplay data={sensorData} isCharging={isCharging} sensors={connectedSensors} />
           </div>

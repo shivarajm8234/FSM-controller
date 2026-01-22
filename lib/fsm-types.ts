@@ -144,11 +144,11 @@ export const STATE_CONFIGS: Record<FSMState, StateConfig> = {
 }
 
 export const VALID_TRANSITIONS: Record<FSMState, FSMState[]> = {
-  BOOT: ["SELF_TEST"],
+  BOOT: ["SELF_TEST", "ERROR"],
   SELF_TEST: ["SLEEP", "ERROR"],
-  SLEEP: ["WAKE"],
-  WAKE: ["SENSE"],
-  SENSE: ["PROCESS"],
+  SLEEP: ["WAKE", "ERROR"],
+  WAKE: ["SENSE", "ERROR"],
+  SENSE: ["PROCESS", "ERROR"],
   PROCESS: ["TRANSMIT", "ERROR"],
   TRANSMIT: ["SLEEP", "ERROR"],
   ERROR: ["REPAIR"],

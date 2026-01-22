@@ -15,6 +15,7 @@ interface ControlPanelProps {
   onReset: () => void
   config: FSMConfig
   onConfigChange: (config: Partial<FSMConfig>) => void
+  onTriggerFault?: () => void
 }
 
 export function ControlPanel({
@@ -25,6 +26,7 @@ export function ControlPanel({
   onReset,
   config,
   onConfigChange,
+  onTriggerFault,
 }: ControlPanelProps) {
   const validTransitions = VALID_TRANSITIONS[currentState]
 
@@ -98,6 +100,19 @@ export function ControlPanel({
           <RotateCcw className="w-3 h-3 mr-2" />
           SYSTEM RESET
         </Button>
+
+        {/* Force Fault Button */}
+        {!isAutoMode && onTriggerFault && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onTriggerFault}
+            className="w-full font-mono text-xs h-8 border-rose-500/30 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400"
+          >
+            <Settings2 className="w-3 h-3 mr-2 rotate-45" />
+            FORCE SYSTEM FAULT
+          </Button>
+        )}
 
         {/* Configuration sliders */}
         <div className="space-y-4 pt-3 border-t border-border">

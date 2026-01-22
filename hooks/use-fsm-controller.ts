@@ -109,6 +109,13 @@ export function useFSMController() {
     addEvent(null, "BOOT", "System reset - entering BOOT mode")
   }, [addEvent])
 
+  const sensorDataRef = useRef(sensorData)
+
+  // Keep ref in sync with state to access latest data in timers without resetting them
+  useEffect(() => {
+    sensorDataRef.current = sensorData
+  }, [sensorData])
+
   // Auto mode state machine logic
   useEffect(() => {
     if (!isAutoMode) {
@@ -122,64 +129,81 @@ export function useFSMController() {
       setCurrentState((prevState) => {
         let nextState: FSMState = prevState
         let message = ""
+        const currentBattery = sensorDataRef.current.battery
 
-        // Simulate random errors (5% chance) for PROCESS state
-        if (Math.random() < 0.05 && (prevState === "PROCESS")) {
-          nextState = "ERROR"
-          message = "Random processing fault detected"
-        } else {
-          switch (prevState) {
-            case "BOOT":
-              nextState = "SELF_TEST"
-              message = "Boot sequence completed"
-              break
-            case "SELF_TEST":
-              // Simulate self-test success (90%) or failure (10%)
-              if (Math.random() < 0.9) {
-                nextState = "SLEEP"
-                message = "Self-test passed successfully"
-              } else {
-                nextState = "ERROR"
-                message = "Self-test failed"
+        // CRITICAL BATTERY CONSTRAINT
+        // If battery is dead (0%), force system to sleep and stay there until charged
+        if (currentBattery <= 0) {
+           if (prevState !== "SLEEP") {
+             nextState = "SLEEP"
+             message = "Battery depleted (0%) - Forced shutdown to SLEEP"
+           } else {
+             // Already in SLEEP, stay there explicitly (prevent WAKE)
+             // We can optionally log a message or just stay silent
+             return prevState 
+           }
+        } 
+        
+        // Normal Cycle Logic (only if battery has charge)
+        else {
+            // Simulate random errors (5% chance) for PROCESS state
+            if (Math.random() < 0.05 && (prevState === "PROCESS")) {
+              nextState = "ERROR"
+              message = "Random processing fault detected"
+            } else {
+              switch (prevState) {
+                case "BOOT":
+                  nextState = "SELF_TEST"
+                  message = "Boot sequence completed"
+                  break
+                case "SELF_TEST":
+                  // Simulate self-test success (90%) or failure (10%)
+                  if (Math.random() < 0.9) {
+                    nextState = "SLEEP"
+                    message = "Self-test passed successfully"
+                  } else {
+                    nextState = "ERROR"
+                    message = "Self-test failed"
+                  }
+                  break
+                case "SLEEP":
+                  nextState = "WAKE"
+                  message = "Wake timer triggered"
+                  break
+                case "WAKE":
+                  nextState = "SENSE"
+                  message = "System activated"
+                  break
+                case "SENSE":
+                  nextState = "PROCESS"
+                  message = "Data acquired, processing"
+                  break
+                case "PROCESS":
+                  // POWER EFFICIENCY: Smart Power Gating
+                  // If battery is critical (< 10%), skip the expensive TRANSMIT state
+                  if (currentBattery < 10) {
+                    nextState = "SLEEP"
+                    message = "Battery critical (<10%) - Skipping TX to save power"
+                  } else {
+                    nextState = "TRANSMIT"
+                    message = "Data processed, ready to transmit"
+                  }
+                  break
+                case "TRANSMIT":
+                  // Wait for MQTT callback to trigger transition
+                  // If stuck for too long, watchdog will catch it in next effect or we can add a safety timeout here
+                  // For now, we rely on the useEffect below to transition us
+                  break
+                case "ERROR":
+                  nextState = "REPAIR"
+                  message = "Entering repair mode"
+                  break
+                case "REPAIR":
+                  nextState = "SLEEP"
+                  message = "Repair completed, entering sleep"
+                  break
               }
-              break
-            case "SLEEP":
-              nextState = "WAKE"
-              message = "Wake timer triggered"
-              break
-            case "WAKE":
-              nextState = "SENSE"
-              message = "System activated"
-              break
-            case "SENSE":
-              nextState = "PROCESS"
-              message = "Data acquired, processing"
-              break
-            case "PROCESS":
-              // POWER EFFICIENCY: Smart Power Gating
-              // If battery is critical (< 10%), skip the expensive TRANSMIT state
-              if (sensorData.battery < 10) {
-                nextState = "SLEEP"
-                message = "Battery critical (<10%) - Skipping TX to save power"
-              } else {
-                nextState = "TRANSMIT"
-                message = "Data processed, ready to transmit"
-              }
-              break
-            case "TRANSMIT":
-              // Wait for MQTT callback to trigger transition
-              // If stuck for too long, watchdog will catch it in next effect or we can add a safety timeout here
-              // For now, we rely on the useEffect below to transition us
-              break
-            case "ERROR":
-              nextState = "REPAIR"
-              message = "Entering repair mode"
-              break
-            case "REPAIR":
-              nextState = "SLEEP"
-              message = "Repair completed, entering sleep"
-              break
-          }
+            }
         }
 
         if (nextState !== prevState) {
@@ -201,12 +225,12 @@ export function useFSMController() {
           let dynamicSleep = config.sleepInterval
 
           // 1. Environmental Urgency: If Air Quality is bad (PM2.5 > 35), wake up more often
-          if ((sensorData.pm25 || 0) > 35) {
+          if ((sensorDataRef.current.pm25 || 0) > 35) {
             dynamicSleep = dynamicSleep * 0.5 // Sleep 50% less
           }
 
           // 2. Resource Conservation: If Battery is low (< 20%), force deep sleep
-          if (sensorData.battery < 20) {
+          if (sensorDataRef.current.battery < 20) {
             dynamicSleep = dynamicSleep * 2.0 // Sleep 200% longer
           }
 
@@ -491,6 +515,10 @@ export function useFSMController() {
 
   const isCharging = currentState === "SLEEP" || currentState === "BOOT" || currentState === "SELF_TEST"
 
+  const triggerFault = useCallback(() => {
+    transitionTo("ERROR", "Manual fault triggered via control panel")
+  }, [transitionTo])
+
   return {
     currentState,
     isAutoMode,
@@ -503,6 +531,7 @@ export function useFSMController() {
     setIsAutoMode,
     transitionTo,
     reset,
+    triggerFault,
     setConfig: (updates: Partial<FSMConfig>) => setConfig((prev) => ({ ...prev, ...updates })),
     connectedSensors,
   }
