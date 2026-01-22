@@ -25,6 +25,7 @@ export default function Home() {
     transitionTo,
     reset,
     setConfig,
+    connectedSensors,
   } = useFSMController()
 
   return (
@@ -40,8 +41,8 @@ export default function Home() {
               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-background" />
             </div>
             <div>
-              <h1 className="text-lg md:text-xl font-semibold text-foreground tracking-tight">FSM Controller</h1>
-              <p className="text-xs text-muted-foreground font-mono">Industrial IoT Sensor Platform</p>
+              <h1 className="text-lg md:text-xl font-semibold text-foreground tracking-tight">Air Pollution Monitor</h1>
+              <p className="text-xs text-muted-foreground font-mono">Open Source Air Quality Tracking</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -93,7 +94,7 @@ export default function Home() {
               config={config}
               onConfigChange={setConfig}
             />
-            <SensorDisplay data={sensorData} isCharging={isCharging} />
+            <SensorDisplay data={sensorData} isCharging={isCharging} sensors={connectedSensors} />
           </div>
         </div>
 

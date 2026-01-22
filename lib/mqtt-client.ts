@@ -11,18 +11,19 @@ export const getMQTTClient = () => {
 
   // Connect to the public test broker via WebSockets
   // Try multiple brokers for better reliability
+  // Connect to the HiveMQ Serverless Cluster
   const brokers = [
-    "wss://broker.hivemq.com:8884/mqtt",
-    "wss://test.mosquitto.org:8081",
-    "wss://mqtt.eclipseprojects.io:443"
+    "wss://58071564a2bd44eeacfb16945302d2d6.s1.eu.hivemq.cloud:8884/mqtt"
   ]
   
   let currentBrokerIndex = 0
   
   const connectToBroker = (brokerUrl: string): Promise<boolean> => {
     return new Promise((resolve) => {
-      console.log(`Attempting to connect to MQTT broker: ${brokerUrl}`)
+      console.log(`Attempting to connect to HiveMQ Cloud: ${brokerUrl}`)
       
+      // NOTE: HiveMQ Cloud requires valid Credentials!
+      // Please replace 'hivemq.webclient' and 'password' with your actual cluster credentials
       client = mqtt.connect(brokerUrl, {
         keepalive: 60,
         clientId: `adld_client_${Math.random().toString(16).substring(2, 8)}`,
@@ -31,6 +32,8 @@ export const getMQTTClient = () => {
         clean: true,
         reconnectPeriod: 2000,
         connectTimeout: 10 * 1000,
+        username: "hivemq.webclient.1769097771472", 
+        password: "VUBDafdSC19ecg28%*!$",
       })
 
       const timeout = setTimeout(() => {

@@ -9,28 +9,57 @@ import {
   type FSMConfig,
   STATE_CONFIGS,
   VALID_TRANSITIONS,
+  type SensorDetail,
 } from "@/lib/fsm-types"
 
 import { publishData } from "@/lib/mqtt-client"
 
 const generateId = () => Math.random().toString(36).substring(2, 9)
 
+const calculateAQI = (pm25: number, pm10: number) => {
+  // AQI calculation based on PM2.5 using US EPA standards
+  // Formula: I = ((Ihi - Ilo) / (Chi - Clo)) * (C - Clo) + Ilo
+  const calc = (c: number, clo: number, chi: number, ilo: number, ihi: number) => {
+    return ((ihi - ilo) / (chi - clo)) * (c - clo) + ilo
+  }
+
+  let aqi = 0
+  const c = Math.round(pm25 * 10) / 10 // Round to 1 decimal place
+
+  if (c >= 0 && c <= 12.0) aqi = calc(c, 0, 12.0, 0, 50)
+  else if (c >= 12.1 && c <= 35.4) aqi = calc(c, 12.1, 35.4, 51, 100)
+  else if (c >= 35.5 && c <= 55.4) aqi = calc(c, 35.5, 55.4, 101, 150)
+  else if (c >= 55.5 && c <= 150.4) aqi = calc(c, 55.5, 150.4, 151, 200)
+  else if (c >= 150.5 && c <= 250.4) aqi = calc(c, 150.5, 250.4, 201, 300)
+  else if (c >= 250.5 && c <= 500.4) aqi = calc(c, 250.5, 500.4, 301, 500)
+  else aqi = 500 // hazardous+
+
+  aqi = Math.round(aqi)
+
+  let status: SensorData["aqiStatus"] = "Good"
+  if (aqi > 50) status = "Moderate"
+  if (aqi > 100) status = "Unhealthy for Sensitive Groups"
+  if (aqi > 150) status = "Unhealthy"
+  if (aqi > 200) status = "Very Unhealthy"
+  if (aqi > 300) status = "Hazardous"
+
+  return { aqi, status }
+}
+
 export function useFSMController() {
   const [currentState, setCurrentState] = useState<FSMState>("BOOT")
   const [isAutoMode, setIsAutoMode] = useState(false)
   const [sensorData, setSensorData] = useState<SensorData>({
-    temperature: 22,
-    humidity: 45,
     battery: 100,
     timestamp: Date.now(),
   })
+  const [connectedSensors, setConnectedSensors] = useState<SensorDetail[]>([])
+  const [sensorAddresses, setSensorAddresses] = useState<Record<string, string>>({})
   const [powerHistory, setPowerHistory] = useState<PowerDataPoint[]>([])
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([])
   const [config, setConfig] = useState<FSMConfig>({
     sleepInterval: 3,
     senseThreshold: 30,
-    temperatureThreshold: 40,
-    humidityThreshold: 80,
     pm10Threshold: 50,
     pm25Threshold: 25,
     transmitRetries: 3,
@@ -94,10 +123,10 @@ export function useFSMController() {
         let nextState: FSMState = prevState
         let message = ""
 
-        // Simulate random errors (5% chance) for PROCESS and TRANSMIT states
-        if (Math.random() < 0.05 && (prevState === "PROCESS" || prevState === "TRANSMIT")) {
+        // Simulate random errors (5% chance) for PROCESS state
+        if (Math.random() < 0.05 && (prevState === "PROCESS")) {
           nextState = "ERROR"
-          message = "Random fault detected"
+          message = "Random processing fault detected"
         } else {
           switch (prevState) {
             case "BOOT":
@@ -127,18 +156,20 @@ export function useFSMController() {
               message = "Data acquired, processing"
               break
             case "PROCESS":
-              nextState = "TRANSMIT"
-              message = "Data processed, ready to transmit"
+              // POWER EFFICIENCY: Smart Power Gating
+              // If battery is critical (< 10%), skip the expensive TRANSMIT state
+              if (sensorData.battery < 10) {
+                nextState = "SLEEP"
+                message = "Battery critical (<10%) - Skipping TX to save power"
+              } else {
+                nextState = "TRANSMIT"
+                message = "Data processed, ready to transmit"
+              }
               break
             case "TRANSMIT":
-              // Simulate transmission success (85%) or failure (15%)
-              if (Math.random() < 0.85) {
-                nextState = "SLEEP"
-                message = "Transmission successful"
-              } else {
-                nextState = "ERROR"
-                message = "Transmission failed"
-              }
+              // Wait for MQTT callback to trigger transition
+              // If stuck for too long, watchdog will catch it in next effect or we can add a safety timeout here
+              // For now, we rely on the useEffect below to transition us
               break
             case "ERROR":
               nextState = "REPAIR"
@@ -165,7 +196,21 @@ export function useFSMController() {
         case "SELF_TEST":
           return 2000
         case "SLEEP":
-          return config.sleepInterval * 1000
+          // POWER EFFICIENCY: Adaptive Duty Cycling
+          // Calculate dynamic sleep time based on environment and battery
+          let dynamicSleep = config.sleepInterval
+
+          // 1. Environmental Urgency: If Air Quality is bad (PM2.5 > 35), wake up more often
+          if ((sensorData.pm25 || 0) > 35) {
+            dynamicSleep = dynamicSleep * 0.5 // Sleep 50% less
+          }
+
+          // 2. Resource Conservation: If Battery is low (< 20%), force deep sleep
+          if (sensorData.battery < 20) {
+            dynamicSleep = dynamicSleep * 2.0 // Sleep 200% longer
+          }
+
+          return dynamicSleep * 1000
         case "WAKE":
           return 500
         case "SENSE":
@@ -194,63 +239,103 @@ export function useFSMController() {
 
   // Sensor data simulation & fetching
   useEffect(() => {
+    const fetchLocationName = async (lat: string, lon: string, id: string) => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
+          headers: {
+            "User-Agent": "FSM-Controller-App/1.0"
+          }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const locName = data.address?.city || data.address?.town || data.address?.village || data.address?.county || "Unknown Location"
+          setSensorAddresses(prev => ({ ...prev, [id]: locName }))
+        }
+      } catch (err) {
+        console.error("Geocoding failed", err)
+      }
+    }
+
     const fetchRealData = async () => {
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 5000)
         
-        // Fetch from both sensors in parallel
-        const [pmRes, bmeRes] = await Promise.all([
-          fetch("https://data.sensor.community/airrohr/v1/sensor/61982/", { signal: controller.signal }),
-          fetch("https://data.sensor.community/airrohr/v1/sensor/61983/", { signal: controller.signal })
+        // Fetch from the "rich" sensor we found (ID: 71641)
+        const [richSensorRes] = await Promise.all([
+          fetch("https://data.sensor.community/airrohr/v1/sensor/71641/", { signal: controller.signal })
         ])
         
         clearTimeout(timeoutId)
         
         const changes: Partial<SensorData> = { timestamp: Date.now() }
+        const sensors: SensorDetail[] = []
 
-        // Process PM Data
-        if (pmRes.ok) {
-          const data = await pmRes.json()
+        if (richSensorRes.ok) {
+          const data = await richSensorRes.json()
           if (Array.isArray(data) && data.length > 0) {
             const latest = data[0]
-            const p1 = latest.sensordatavalues.find((v: any) => v.value_type === "P1")
-            const p2 = latest.sensordatavalues.find((v: any) => v.value_type === "P2")
-            if (p1) {
-              const basePM10 = parseFloat(p1.value)
-              // Add small realistic variation (±5%)
-              const variation = (Math.random() - 0.5) * 0.1 * basePM10
-              changes.pm10 = Math.max(0, basePM10 + variation)
+            
+            // Extract Sensor Details
+            if (latest.sensor && latest.location) {
+              const sId = latest.sensor.id.toString()
+              
+              // Trigger address fetch if not known
+              if (!sensorAddresses[sId]) {
+                 // Debounce/limit logic isn't strictly needed if we check state, 
+                 // but better to check if we are already fetching (omitted for simplicity, state check handles duplicate triggering eventually)
+                 // Actually, to avoid multiple calls, we should ideally use a ref to track pending requests, 
+                 // but for this single sensor case, simple state check is okay-ish as long as it settles quickly.
+                 // We will verify in next render cycle.
+                 fetchLocationName(latest.location.latitude, latest.location.longitude, sId)
+              }
+
+              sensors.push({
+                id: sId,
+                type: latest.sensor.sensor_type.name,
+                manufacturer: latest.sensor.sensor_type.manufacturer,
+                latitude: latest.location.latitude,
+                longitude: latest.location.longitude,
+                country: latest.location.country,
+                altitude: latest.location.altitude,
+                indoor: latest.location.indoor === 1,
+                lastSeen: latest.timestamp,
+                locationName: sensorAddresses[sId]
+              })
             }
-            if (p2) {
-              const basePM25 = parseFloat(p2.value)
-              // Add small realistic variation (±5%)
-              const variation = (Math.random() - 0.5) * 0.1 * basePM25
-              changes.pm25 = Math.max(0, basePM25 + variation)
-            }
+
+            // Map all available parameters
+            latest.sensordatavalues.forEach((v: any) => {
+              const val = parseFloat(v.value)
+              switch(v.value_type) {
+                case "P1": changes.pm10 = val; break;
+                case "P2": changes.pm25 = val; break;
+                // Add mappings for other params if SensorData type supported them
+                // For now we stick to the ones defined in types
+              }
+              // Temp/Humidity/Pressure if available
+              if (v.value_type === "temperature") changes.temperature = val
+              if (v.value_type === "humidity") changes.humidity = val
+              if (v.value_type === "pressure") changes.pressure = val
+            })
           }
         }
+        
+        if (sensors.length > 0) {
+          setConnectedSensors(prev => {
+             // Avoid duplicate updates if data hasn't changed meaningfully to prevent component re-renders
+             // simple length check for now, can be improved
+             if (prev.length === sensors.length && prev[0]?.lastSeen === sensors[0]?.lastSeen) return prev
+             return sensors
+          })
+        }
 
-        // Process Temp/Hum Data
-        if (bmeRes.ok) {
-          const data = await bmeRes.json()
-          if (Array.isArray(data) && data.length > 0) {
-            const latest = data[0]
-            const temp = latest.sensordatavalues.find((v: any) => v.value_type === "temperature")
-            const hum = latest.sensordatavalues.find((v: any) => v.value_type === "humidity")
-            if (temp) {
-              const baseTemp = parseFloat(temp.value)
-              // Add small realistic variation (±0.5°C)
-              const variation = (Math.random() - 0.5) * 1.0
-              changes.temperature = baseTemp + variation
-            }
-            if (hum) {
-              const baseHum = parseFloat(hum.value)
-              // Add small realistic variation (±2%)
-              const variation = (Math.random() - 0.5) * 4.0
-              changes.humidity = Math.max(0, Math.min(100, baseHum + variation))
-            }
-          }
+        // Calculate AQI if we have PM data
+        if (changes.pm25 !== undefined && changes.pm10 !== undefined) {
+          const { aqi, status } = calculateAQI(changes.pm25, changes.pm10)
+          changes.aqi = aqi
+          changes.aqiStatus = status
+          console.log(`Calculated AQI: ${aqi} (${status})`)
         }
 
         setSensorData(prev => ({ ...prev, ...changes }))
@@ -301,7 +386,7 @@ export function useFSMController() {
         console.log("Stopped frequent sensor fetch")
       }
     }
-  }, [currentState, isAutoMode])
+  }, [currentState, isAutoMode, sensorAddresses])
 
   // Power history tracking
   useEffect(() => {
@@ -336,29 +421,64 @@ export function useFSMController() {
 
   // MQTT Transmission
   useEffect(() => {
+    // Publish Normal Data
     if (currentState === "TRANSMIT") {
       console.log("Entering TRANSMIT state, preparing to send sensor data:", sensorData)
       
-      // Add a small delay to ensure MQTT client is ready
       const transmitTimer = setTimeout(async () => {
         try {
-          const success = await publishData("adld/sensor/data", sensorData)
+          const success = await publishData("adld/sensor/pollution_data", {
+            ...sensorData,
+            fsmState: currentState,  // Added FSM State
+            systemStatus: "ONLINE",
+            source: "Sensor.community (Open Source)",
+            type: "Air Pollution Monitor"
+          })
           if (success) {
             console.log("✅ Data transmitted via MQTT successfully")
-            addEvent("TRANSMIT", "SLEEP", "MQTT transmission completed")
+            // Trigger transition to SLEEP on success
+            transitionTo("SLEEP", "MQTT transmission completed")
           } else {
             console.warn("⚠️ MQTT transmission failed, but continuing state flow")
-            addEvent("TRANSMIT", "SLEEP", "MQTT transmission failed, continuing")
+            // Trigger transition to ERROR on failure
+            transitionTo("ERROR", "MQTT transmission failed")
           }
         } catch (error) {
           console.error("❌ MQTT transmission error:", error)
-          addEvent("TRANSMIT", "SLEEP", "MQTT transmission error, continuing")
+          transitionTo("ERROR", "MQTT transmission critical error")
         }
-      }, 500) // Wait 500ms before transmitting
+      }, 500)
       
       return () => clearTimeout(transmitTimer)
     }
-  }, [currentState, sensorData, addEvent])
+
+    // Publish Error Data
+    if (currentState === "ERROR") {
+      console.log("Entering ERROR state, publishing fault info")
+      
+      const errorTimer = setTimeout(async () => {
+        try {
+          // Find the last error message from the log
+          const lastErrorEvent = eventLog.slice().reverse().find(e => e.toState === "ERROR")
+          const reason = lastErrorEvent ? lastErrorEvent.message : "Unknown System Fault"
+
+          await publishData("adld/sensor/pollution_data", {
+            ...sensorData,
+            fsmState: currentState,
+            systemStatus: "FAULT",
+            errorMessage: reason,
+            source: "Sensor.community (Open Source)",
+            type: "Air Pollution Monitor"
+          })
+          console.log("✅ Error status transmitted via MQTT")
+        } catch (error) {
+           console.error("Failed to publish error status", error)
+        }
+      }, 100)
+      return () => clearTimeout(errorTimer)
+    }
+
+  }, [currentState, sensorData, addEvent, eventLog, transitionTo])
 
   const averagePower =
     powerHistory.length > 0
@@ -380,5 +500,6 @@ export function useFSMController() {
     transitionTo,
     reset,
     setConfig: (updates: Partial<FSMConfig>) => setConfig((prev) => ({ ...prev, ...updates })),
+    connectedSensors,
   }
 }

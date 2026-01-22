@@ -1,15 +1,24 @@
 "use client"
 
 import { motion } from "framer-motion"
-import type { SensorData } from "@/lib/fsm-types"
-import { Thermometer, Droplets, Battery, BatteryCharging, Signal, Wind } from "lucide-react"
+import type { SensorData, SensorDetail } from "@/lib/fsm-types"
+import { Battery, BatteryCharging, Signal, Wind, Gauge, ShieldCheck, AlertTriangle, AlertOctagon, Wifi, Info, MapPin, Factory, Calendar } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface SensorDisplayProps {
   data: SensorData
   isCharging: boolean
+  sensors?: SensorDetail[]
 }
 
-export function SensorDisplay({ data, isCharging }: SensorDisplayProps) {
+export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayProps) {
   const getBatteryColor = (level: number) => {
     if (level > 60) return "text-emerald-400"
     if (level > 30) return "text-amber-400"
@@ -28,23 +37,22 @@ export function SensorDisplay({ data, isCharging }: SensorDisplayProps) {
     return "text-teal-400"
   }
 
+  const getAQIColor = (aqi: number) => {
+    if (aqi <= 50) return "text-emerald-400" // Good
+    if (aqi <= 100) return "text-yellow-400" // Moderate
+    if (aqi <= 150) return "text-orange-400" // Unhealthy for Sensitive
+    if (aqi <= 200) return "text-red-400" // Unhealthy
+    if (aqi <= 300) return "text-purple-400" // Very Unhealthy
+    return "text-rose-900" // Hazardous
+  }
+
+  const getAQIIcon = (aqi: number) => {
+    if (aqi <= 50) return <ShieldCheck className="w-4 h-4 text-emerald-400" />
+    if (aqi <= 150) return <AlertTriangle className={`w-4 h-4 ${getAQIColor(aqi)}`} />
+    return <AlertOctagon className={`w-4 h-4 ${getAQIColor(aqi)}`} />
+  }
+
   const metrics = [
-    {
-      icon: <Thermometer className={`w-4 h-4 ${getTemperatureColor(data.temperature)}`} />,
-      label: "TEMP",
-      value: data.temperature.toFixed(1),
-      unit: "°C",
-      progress: (data.temperature / 50) * 100,
-      color: getTemperatureColor(data.temperature),
-    },
-    {
-      icon: <Droplets className="w-4 h-4 text-sky-400" />,
-      label: "HUMIDITY",
-      value: data.humidity.toFixed(1),
-      unit: "%",
-      progress: data.humidity,
-      color: "text-sky-400",
-    },
     {
       icon: isCharging ? (
         <BatteryCharging className="w-4 h-4 text-emerald-400" />
@@ -77,8 +85,37 @@ export function SensorDisplay({ data, isCharging }: SensorDisplayProps) {
             label: "PM2.5",
             value: data.pm25.toFixed(1),
             unit: "µg/m³",
-            progress: Math.min(100, (data.pm25 / 25) * 100), // Assuming 25 is a high value
+            progress: Math.min(100, (data.pm25 / 25) * 100),
             color: "text-slate-400",
+          },
+        ]
+      : []),
+    ...(data.pressure !== undefined
+      ? [
+          {
+            icon: <Gauge className="w-4 h-4 text-indigo-400" />,
+            label: "PRESSURE",
+            value: (data.pressure / 100).toFixed(2), // Convert Pa to hPa if needed, or keep as is. Usually they send Pa. Let's check typical values.
+            // BME280 usually sends Pa. e.g. 100000. 1000 hPa. 
+            // The value I saw in curl was "100844.23". That is Pa. 
+            // 1 hPa = 100 Pa. So 100844 / 100 = 1008.44 hPa.
+            // Let's display hPa.
+            unit: " hPa", 
+            progress: 75, // constant for now or relative to standard atm
+            color: "text-indigo-400",
+          },
+        ]
+        : []),
+    ...(data.aqi !== undefined
+      ? [
+          {
+            icon: getAQIIcon(data.aqi),
+            label: "AIR QUALITY",
+            value: data.aqi.toString(),
+            unit: " AQI",
+            progress: Math.min(100, (data.aqi / 300) * 100),
+            color: getAQIColor(data.aqi),
+            progressColor: getAQIColor(data.aqi).replace("text-", "bg-"),
           },
         ]
       : []),
@@ -123,6 +160,104 @@ export function SensorDisplay({ data, isCharging }: SensorDisplayProps) {
             </div>
           </motion.div>
         ))}
+      </div>
+
+      <div className="mt-6 border-t border-border pt-4">
+         <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-mono text-muted-foreground tracking-wider">CONNECTED SENSORS</h3>
+          <div className="flex items-center gap-1.5">
+            <Wifi className="w-3 h-3 text-emerald-400" />
+            <span className="text-[10px] font-mono text-emerald-400">ONLINE</span>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {sensors.length > 0 ? (
+            sensors.map((sensor) => (
+              <Dialog key={sensor.id}>
+                <DialogTrigger asChild>
+                  <div className="flex items-center justify-between text-xs p-2 bg-secondary/50 rounded border border-border/50 cursor-pointer hover:bg-secondary/80 transition-colors">
+                    <div className="flex flex-col">
+                       <span className="font-medium text-foreground">{sensor.type} Sensor</span>
+                       <span className="text-[10px] text-muted-foreground font-mono">ID: {sensor.id}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <Info className="w-3 h-3 text-muted-foreground" />
+                       <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                    </div>
+                  </div>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{sensor.type} Sensor Details</DialogTitle>
+                    <DialogDescription>
+                      Full technical specifications and location data
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      
+                      <div className="space-y-1">
+                        <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                          <Factory className="w-3 h-3" /> MANUFACTURER
+                        </span>
+                        <p className="text-sm font-medium">{sensor.manufacturer}</p>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> LOCATION
+                          {sensor.locationName && (
+                             <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] text-primary">
+                                {sensor.locationName}
+                             </span>
+                          )}
+                        </span>
+                        <p className="text-sm font-medium">{sensor.country}</p>
+                        <p className="text-xs text-muted-foreground">Alt: {sensor.altitude}m</p>
+                      </div>
+
+                      <div className="space-y-1 col-span-2">
+                         <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> COORDINATES
+                        </span>
+                        <p className="text-sm font-mono text-muted-foreground">
+                          {sensor.latitude}, {sensor.longitude}
+                        </p>
+                        <a 
+                          href={`https://www.openstreetmap.org/?mlat=${sensor.latitude}&mlon=${sensor.longitude}#map=15/${sensor.latitude}/${sensor.longitude}`} 
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          View on Map
+                        </a>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> LAST SEEN
+                        </span>
+                        <p className="text-xs font-mono">{new Date(sensor.lastSeen).toLocaleString()}</p>
+                      </div>
+                      
+                      <div className="space-y-1">
+                         <span className="text-xs font-mono text-muted-foreground">PLACEMENT</span>
+                         <div className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${sensor.indoor ? "bg-amber-500/10 text-amber-500" : "bg-sky-500/10 text-sky-500"}`}>
+                           {sensor.indoor ? "INDOOR" : "OUTDOOR"}
+                         </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ))
+          ) : (
+            <div className="text-center py-4 text-xs text-muted-foreground">
+              No active sensors found
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

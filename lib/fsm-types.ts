@@ -11,11 +11,15 @@ export interface StateConfig {
 }
 
 export interface SensorData {
-  temperature: number
-  humidity: number
   battery: number
+  temperature?: number
+  humidity?: number
   pm10?: number
   pm25?: number
+  aqi?: number
+  aqiStatus?: "Good" | "Moderate" | "Unhealthy for Sensitive Groups" | "Unhealthy" | "Very Unhealthy" | "Hazardous"
+  pressure?: number
+  pressureSealevel?: number
   timestamp: number
 }
 
@@ -33,11 +37,22 @@ export interface EventLogEntry {
   message: string
 }
 
+export interface SensorDetail {
+  id: string
+  type: string
+  manufacturer: string
+  latitude: string
+  longitude: string
+  country: string
+  altitude: string
+  indoor: boolean
+  lastSeen: string
+  locationName?: string
+}
+
 export interface FSMConfig {
   sleepInterval: number
   senseThreshold: number
-  temperatureThreshold: number
-  humidityThreshold: number
   pm10Threshold: number
   pm25Threshold: number
   transmitRetries: number

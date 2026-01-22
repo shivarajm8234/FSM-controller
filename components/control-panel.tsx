@@ -119,35 +119,7 @@ export function ControlPanel({
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-[10px] font-mono text-muted-foreground">TEMP THRESHOLD</Label>
-                <span className="text-xs font-mono text-foreground">{config.temperatureThreshold}°C</span>
-              </div>
-              <Slider
-                value={[config.temperatureThreshold]}
-                onValueChange={([value]) => onConfigChange({ temperatureThreshold: value })}
-                min={-10}
-                max={50}
-                step={1}
-                className="w-full"
-              />
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <Label className="text-[10px] font-mono text-muted-foreground">HUMIDITY THRESHOLD</Label>
-                <span className="text-xs font-mono text-foreground">{config.humidityThreshold}%</span>
-              </div>
-              <Slider
-                value={[config.humidityThreshold]}
-                onValueChange={([value]) => onConfigChange({ humidityThreshold: value })}
-                min={20}
-                max={100}
-                step={1}
-                className="w-full"
-              />
-            </div>
 
             <div className="space-y-2">
               <div className="flex justify-between">
