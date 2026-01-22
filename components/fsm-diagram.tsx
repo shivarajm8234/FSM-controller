@@ -91,6 +91,15 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
   const allTransitions: [FSMState, FSMState][] = []
   Object.entries(VALID_TRANSITIONS).forEach(([from, toStates]) => {
     toStates.forEach((to) => {
+      // VISUAL CLEANUP:
+      // We allow transitioning to ERROR from almost anywhere (for Manual Fault Injection),
+      // but drawing all these arrows looks messy. 
+      // Only show "logic" error paths that happen automatically.
+      if (to === "ERROR") {
+        const isLogicError = ["SELF_TEST", "PROCESS", "TRANSMIT"].includes(from)
+        if (!isLogicError) return
+      }
+      
       allTransitions.push([from as FSMState, to])
     })
   })
