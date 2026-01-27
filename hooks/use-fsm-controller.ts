@@ -7,6 +7,7 @@ import {
   type PowerDataPoint,
   type EventLogEntry,
   type FSMConfig,
+  type TransmissionStats,
   STATE_CONFIGS,
   VALID_TRANSITIONS,
   type SensorDetail,
@@ -65,6 +66,7 @@ export function useFSMController() {
     transmitRetries: 3,
     errorRecoveryTime: 2,
   })
+  const [lastTxStats, setLastTxStats] = useState<TransmissionStats | null>(null)
 
   const stateTimerRef = useRef<NodeJS.Timeout | null>(null)
   const sensorTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -455,20 +457,49 @@ export function useFSMController() {
       
       const transmitTimer = setTimeout(async () => {
         try {
-          const success = await publishData("adld/sensor/pollution_data", {
+          const startTime = Date.now()
+          
+          // Priority 1: Send critical data first (PM2.5, PM10, AQI)
+          const criticalPayload = {
+            pm25: sensorData.pm25,
+            pm10: sensorData.pm10,
+            aqi: sensorData.aqi,
+            aqiStatus: sensorData.aqiStatus,
+            timestamp: sensorData.timestamp,
+            fsmState: currentState,
+            type: "Air Pollution Monitor (Priority)",
+            txStartTime: new Date(startTime).toISOString(), // Human readable format
+          }
+          
+          await publishData("adld/sensor/pollution_data", criticalPayload)
+          const criticalTime = Date.now()
+          const criticalDuration = criticalTime - startTime
+          console.log(`✅ Critical Data transmitted (Priority) in ${criticalDuration}ms`)
+
+          // Priority 2: Full System Data
+          const fullPayload = {
             ...sensorData,
-            fsmState: currentState,  // Added FSM State
+            fsmState: currentState,
             systemStatus: "ONLINE",
             source: "Sensor.community (Open Source)",
-            type: "Air Pollution Monitor"
-          })
+            type: "Air Pollution Monitor",
+            priorityTxTime: `${criticalDuration}ms`,
+            preFullTxTime: `${Date.now() - startTime}ms`,
+          }
+
+          const success = await publishData("adld/sensor/pollution_data", fullPayload)
+          const totalDuration = Date.now() - startTime
+          
           if (success) {
-            console.log("✅ Data transmitted via MQTT successfully")
-            // Trigger transition to SLEEP on success
-            transitionTo("SLEEP", "MQTT transmission completed")
+            console.log(`✅ Data transmitted via MQTT successfully in ${totalDuration}ms`)
+            setLastTxStats({
+              criticalDuration,
+              totalDuration,
+              timestamp: Date.now()
+            })
+            transitionTo("SLEEP", `MQTT transmission completed (Critical: ${criticalDuration}ms, Total: ${totalDuration}ms)`)
           } else {
             console.warn("⚠️ MQTT transmission failed, but continuing state flow")
-            // Trigger transition to ERROR on failure
             transitionTo("ERROR", "MQTT transmission failed")
           }
         } catch (error) {
@@ -534,5 +565,6 @@ export function useFSMController() {
     triggerFault,
     setConfig: (updates: Partial<FSMConfig>) => setConfig((prev) => ({ ...prev, ...updates })),
     connectedSensors,
+    lastTxStats, // Expose the new stats
   }
 }

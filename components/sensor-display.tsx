@@ -1,8 +1,8 @@
 "use client"
 
 import { motion } from "framer-motion"
-import type { SensorData, SensorDetail } from "@/lib/fsm-types"
-import { Battery, BatteryCharging, Signal, Wind, Gauge, ShieldCheck, AlertTriangle, AlertOctagon, Wifi, Info, MapPin, Factory, Calendar } from "lucide-react"
+import type { SensorData, SensorDetail, TransmissionStats } from "@/lib/fsm-types"
+import { Battery, BatteryCharging, Signal, Wind, Gauge, ShieldCheck, AlertTriangle, AlertOctagon, Wifi, Info, MapPin, Factory, Calendar, Clock, ArrowUpRight } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -16,9 +16,10 @@ interface SensorDisplayProps {
   data: SensorData
   isCharging: boolean
   sensors?: SensorDetail[]
+  lastTxStats?: TransmissionStats | null
 }
 
-export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayProps) {
+export function SensorDisplay({ data, isCharging, sensors = [], lastTxStats }: SensorDisplayProps) {
   const getBatteryColor = (level: number) => {
     if (level > 60) return "text-emerald-400"
     if (level > 30) return "text-amber-400"
@@ -162,6 +163,35 @@ export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayP
         ))}
       </div>
 
+      {/* Network / Transmission Stats */}
+      {lastTxStats && (
+        <div className="mt-6 border-t border-border pt-4">
+           <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-mono text-muted-foreground tracking-wider">TRANSMISSION LATENCY</h3>
+            <div className="flex items-center gap-1.5">
+              <ArrowUpRight className="w-3 h-3 text-sky-400" />
+              <span className="text-[10px] font-mono text-sky-400">LAST TX</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 bg-secondary/50 rounded border border-border/50">
+               <span className="text-[10px] font-mono text-muted-foreground block mb-1">CRITICAL</span>
+               <div className="flex items-baseline gap-1">
+                 <span className="font-mono text-lg font-bold text-foreground">{lastTxStats.criticalDuration}</span>
+                 <span className="text-[10px] text-muted-foreground">ms</span>
+               </div>
+            </div>
+            <div className="p-2 bg-secondary/50 rounded border border-border/50">
+               <span className="text-[10px] font-mono text-muted-foreground block mb-1">TOTAL</span>
+               <div className="flex items-baseline gap-1">
+                 <span className="font-mono text-lg font-bold text-foreground">{lastTxStats.totalDuration}</span>
+                 <span className="text-[10px] text-muted-foreground">ms</span>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 border-t border-border pt-4">
          <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-mono text-muted-foreground tracking-wider">CONNECTED SENSORS</h3>
@@ -198,19 +228,14 @@ export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayP
                       
                       <div className="space-y-1">
                         <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
-                          <Factory className="w-3 h-3" /> MANUFACTURER
+                          <Factory className="w-3 h-3" /> Manufacturer
                         </span>
                         <p className="text-sm font-medium">{sensor.manufacturer}</p>
                       </div>
 
                       <div className="space-y-1">
                         <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> LOCATION
-                          {sensor.locationName && (
-                             <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] text-primary">
-                                {sensor.locationName}
-                             </span>
-                          )}
+                          <MapPin className="w-3 h-3" /> Nation
                         </span>
                         <p className="text-sm font-medium">{sensor.country}</p>
                         <p className="text-xs text-muted-foreground">Alt: {sensor.altitude}m</p>
@@ -218,11 +243,16 @@ export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayP
 
                       <div className="space-y-1 col-span-2">
                          <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> COORDINATES
+                          <MapPin className="w-3 h-3" /> Coordinates
                         </span>
                         <p className="text-sm font-mono text-muted-foreground">
                           {sensor.latitude}, {sensor.longitude}
                         </p>
+                        {sensor.locationName && (
+                          <p className="text-xs font-medium text-foreground">
+                            Address: {sensor.locationName}
+                          </p>
+                        )}
                         <a 
                           href={`https://www.openstreetmap.org/?mlat=${sensor.latitude}&mlon=${sensor.longitude}#map=15/${sensor.latitude}/${sensor.longitude}`} 
                           target="_blank"
@@ -235,13 +265,13 @@ export function SensorDisplay({ data, isCharging, sensors = [] }: SensorDisplayP
 
                       <div className="space-y-1">
                         <span className="text-xs font-mono text-muted-foreground flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> LAST SEEN
+                          <Calendar className="w-3 h-3" /> Last Seen
                         </span>
                         <p className="text-xs font-mono">{new Date(sensor.lastSeen).toLocaleString()}</p>
                       </div>
                       
                       <div className="space-y-1">
-                         <span className="text-xs font-mono text-muted-foreground">PLACEMENT</span>
+                         <span className="text-xs font-mono text-muted-foreground">Placement</span>
                          <div className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${sensor.indoor ? "bg-amber-500/10 text-amber-500" : "bg-sky-500/10 text-sky-500"}`}>
                            {sensor.indoor ? "INDOOR" : "OUTDOOR"}
                          </div>

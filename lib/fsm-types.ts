@@ -59,6 +59,12 @@ export interface FSMConfig {
   errorRecoveryTime: number
 }
 
+export interface TransmissionStats {
+  criticalDuration: number
+  totalDuration: number
+  timestamp: number
+}
+
 export const STATE_CONFIGS: Record<FSMState, StateConfig> = {
   BOOT: {
     name: "BOOT",

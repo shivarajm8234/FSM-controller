@@ -61,7 +61,7 @@ export function EventLog({ events }: EventLogProps) {
                     )}
                     <span className={STATE_CONFIGS[event.toState].color}>{event.toState}</span>
                   </div>
-                  <span className="text-muted-foreground/60 truncate">{event.message}</span>
+                  <span className="text-muted-foreground/60 break-words">{event.message}</span>
                 </motion.div>
               ))}
             </AnimatePresence>
