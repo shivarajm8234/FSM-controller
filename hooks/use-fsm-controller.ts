@@ -11,6 +11,7 @@ import {
   STATE_CONFIGS,
   VALID_TRANSITIONS,
   type SensorDetail,
+  type SensorHistoryPoint,
 } from "@/lib/fsm-types"
 
 import { publishData } from "@/lib/mqtt-client"
@@ -56,7 +57,10 @@ export function useFSMController() {
   })
   const [connectedSensors, setConnectedSensors] = useState<SensorDetail[]>([])
   const [sensorAddresses, setSensorAddresses] = useState<Record<string, string>>({})
+  const [simulationMode, setSimulationMode] = useState<"NORMAL" | "FIRE" | "FALLOUT" | "FAULT" | "BATTERY_LOW">("NORMAL")
+
   const [powerHistory, setPowerHistory] = useState<PowerDataPoint[]>([])
+  const [sensorHistory, setSensorHistory] = useState<SensorHistoryPoint[]>([])
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([])
   const [config, setConfig] = useState<FSMConfig>({
     sleepInterval: 3,
@@ -356,6 +360,26 @@ export function useFSMController() {
           })
         }
 
+        // Apply simulation overrides
+        if (simulationMode !== "NORMAL") {
+           // Base noise
+           const noise = (Math.random() - 0.5) * 5
+
+           if (simulationMode === "FIRE") {
+              changes.pm10 = 300 + Math.random() * 50
+              changes.pm25 = 200 + Math.random() * 30
+              changes.temperature = 45 + Math.random() * 5
+           } else if (simulationMode === "FALLOUT") {
+              changes.pm10 = 600 + Math.random() * 100
+              changes.pm25 = 450 + Math.random() * 50
+              changes.pressure = 98000 + Math.random() * 500
+           } else if (simulationMode === "FAULT") {
+              changes.pm10 = -1
+              changes.pm25 = -1
+              changes.temperature = 999
+           }
+        }
+
         // Calculate AQI if we have PM data
         if (changes.pm25 !== undefined && changes.pm10 !== undefined) {
           const { aqi, status } = calculateAQI(changes.pm25, changes.pm10)
@@ -365,6 +389,29 @@ export function useFSMController() {
         }
 
         setSensorData(prev => ({ ...prev, ...changes }))
+
+        
+        // Update history if we have valid pollution data
+        if (changes.pm10 !== undefined || changes.pm25 !== undefined || changes.aqi !== undefined) {
+          const now = new Date()
+          const timeStr = now.toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+          
+          setSensorHistory(prev => [
+            ...prev.slice(-29), // Keep last 30 points (approx 1 min if 2s interval)
+            {
+              time: timeStr,
+              pm10: changes.pm10 || 0,
+              pm25: changes.pm25 || 0,
+              aqi: changes.aqi || 0
+            }
+          ])
+        }
+
         console.log("Sensor data updated with variation:", changes)
 
       } catch (error: any) {
@@ -397,9 +444,15 @@ export function useFSMController() {
 
         // Only simulate battery changes. 
         // Temp/Hum/PM are now real data (persisted from fetch) or initial defaults.
+        let newBattery = isCharging ? Math.min(100, prev.battery + 0.5) : Math.max(0, prev.battery - powerDrain)
+        
+        if (simulationMode === "BATTERY_LOW") {
+           newBattery = 5 // Force to 5%
+        }
+
         return {
           ...prev,
-          battery: isCharging ? Math.min(100, prev.battery + 0.5) : Math.max(0, prev.battery - powerDrain),
+          battery: newBattery,
           timestamp: Date.now(),
         }
       })
@@ -565,6 +618,9 @@ export function useFSMController() {
     triggerFault,
     setConfig: (updates: Partial<FSMConfig>) => setConfig((prev) => ({ ...prev, ...updates })),
     connectedSensors,
-    lastTxStats, // Expose the new stats
+    lastTxStats,
+    sensorHistory,
+    simulationMode,
+    setSimulationMode,
   }
 }

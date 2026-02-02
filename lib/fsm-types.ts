@@ -29,6 +29,13 @@ export interface PowerDataPoint {
   state: FSMState
 }
 
+export interface SensorHistoryPoint {
+  time: string
+  pm10: number
+  pm25: number
+  aqi: number
+}
+
 export interface EventLogEntry {
   id: string
   timestamp: Date

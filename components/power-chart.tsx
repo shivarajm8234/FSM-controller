@@ -14,7 +14,7 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
   const maxPower = Math.max(60, ...data.map(d => d.power), averagePower * 1.2)
   
   return (
-    <div className="bg-card border border-border rounded-lg">
+    <div className="bg-card border border-border rounded-lg h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
@@ -27,8 +27,8 @@ export function PowerChart({ data, averagePower }: PowerChartProps) {
         </div>
       </div>
 
-      <div className="p-4">
-        <div className="h-[180px] w-full">
+      <div className="p-2 flex-1 min-h-0">
+        <div className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>

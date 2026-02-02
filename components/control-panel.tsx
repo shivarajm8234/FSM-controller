@@ -16,6 +16,8 @@ interface ControlPanelProps {
   config: FSMConfig
   onConfigChange: (config: Partial<FSMConfig>) => void
   onTriggerFault?: () => void
+  simulationMode: string
+  onSimulationModeChange: (mode: any) => void
 }
 
 export function ControlPanel({
@@ -27,6 +29,8 @@ export function ControlPanel({
   config,
   onConfigChange,
   onTriggerFault,
+  simulationMode,
+  onSimulationModeChange,
 }: ControlPanelProps) {
   const validTransitions = VALID_TRANSITIONS[currentState]
 
@@ -46,7 +50,7 @@ export function ControlPanel({
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="p-2 space-y-3">
         {/* Mode indicator */}
         <div
           className={`flex items-center justify-center gap-2 py-2 px-3 rounded ${
@@ -113,6 +117,22 @@ export function ControlPanel({
             FORCE SYSTEM FAULT
           </Button>
         )}
+
+        {/* Simulation Mode Selector */}
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <span className="text-[10px] font-mono text-muted-foreground">SIMULATION SCENARIO</span>
+          <select 
+            className="w-full h-8 text-xs bg-background border border-border rounded px-2 font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            value={simulationMode}
+            onChange={(e) => onSimulationModeChange(e.target.value as any)}
+          >
+            <option value="NORMAL">NORMAL OPERATION</option>
+            <option value="FIRE">FOREST FIRE (HIGH PM)</option>
+            <option value="FALLOUT">TOXIC FALLOUT (EXTREME)</option>
+            <option value="FAULT">SENSOR FAULT (NOISY)</option>
+            <option value="BATTERY_LOW">CRITICAL BATTERY</option>
+          </select>
+        </div>
 
         {/* Configuration sliders */}
         <div className="space-y-4 pt-3 border-t border-border">

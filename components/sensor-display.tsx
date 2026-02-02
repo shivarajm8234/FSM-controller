@@ -132,14 +132,14 @@ export function SensorDisplay({ data, isCharging, sensors = [], lastTxStats }: S
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         {metrics.map((metric, index) => (
           <motion.div
             key={metric.label}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="space-y-2"
+            className="space-y-1"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ export function SensorDisplay({ data, isCharging, sensors = [], lastTxStats }: S
                 <span className="text-[10px] text-muted-foreground">{metric.unit}</span>
               </div>
             </div>
-            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div className="h-1 bg-secondary rounded-full overflow-hidden">
               <motion.div
                 className={`h-full rounded-full ${metric.progressColor || metric.color.replace("text-", "bg-")}`}
                 initial={{ width: 0 }}

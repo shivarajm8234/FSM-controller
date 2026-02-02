@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React, { useState } from "react"
 import { motion } from "framer-motion"
 import { type FSMState, STATE_CONFIGS, VALID_TRANSITIONS } from "@/lib/fsm-types"
 import { Moon, Sun, Activity, Wifi, AlertTriangle, Zap, Wrench, CheckCircle } from "lucide-react"
@@ -37,6 +37,45 @@ const STATE_ICONS: Record<FSMState, React.ReactNode> = {
 const HEXAGON_PATH = "M 0 -55 L 48 -27 L 48 27 L 0 55 L -48 27 L -48 -27 Z"
 
 export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
+  /* ZOOM & PAN STATE */
+  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    if (e.ctrlKey || e.metaKey) {
+       const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1
+       setScale(s => Math.min(Math.max(s * scaleFactor, 0.5), 3))
+    } else {
+       // Panning with wheel if not zooming
+       setPosition(p => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }))
+    }
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+     setIsDragging(true)
+     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  // Zoom controls
+  const zoomIn = () => setScale(s => Math.min(s * 1.2, 3))
+  const zoomOut = () => setScale(s => Math.max(s / 1.2, 0.5))
+  const resetView = () => {
+    setScale(1)
+    setPosition({ x: 0, y: 0 })
+  }
+
   const renderTransitionArrow = (from: FSMState, to: FSMState) => {
     const fromPos = STATE_POSITIONS[from]
     const toPos = STATE_POSITIONS[to]
@@ -91,10 +130,6 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
   const allTransitions: [FSMState, FSMState][] = []
   Object.entries(VALID_TRANSITIONS).forEach(([from, toStates]) => {
     toStates.forEach((to) => {
-      // VISUAL CLEANUP:
-      // We allow transitioning to ERROR from almost anywhere (for Manual Fault Injection),
-      // but drawing all these arrows looks messy. 
-      // Only show "logic" error paths that happen automatically.
       if (to === "ERROR") {
         const isLogicError = ["SELF_TEST", "PROCESS", "TRANSMIT"].includes(from)
         if (!isLogicError) return
@@ -105,8 +140,25 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
   })
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox="0 0 1400 420" className="w-full min-w-[1000px] h-auto">
+    <div className="w-full h-full overflow-hidden relative bg-muted/5 group">
+      {/* Controls Overlay */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={zoomIn} className="w-8 h-8 flex items-center justify-center bg-card border border-border rounded text-foreground hover:bg-accent">+</button>
+        <button onClick={resetView} className="w-8 h-8 flex items-center justify-center bg-card border border-border rounded text-foreground hover:bg-accent">R</button>
+        <button onClick={zoomOut} className="w-8 h-8 flex items-center justify-center bg-card border border-border rounded text-foreground hover:bg-accent">-</button>
+      </div>
+
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 1400 600"
+        className={`w-full h-full ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
         <defs>
           <filter id="glow-filter" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="coloredBlur" />
@@ -121,96 +173,102 @@ export function FSMDiagram({ currentState, onStateClick }: FSMDiagramProps) {
           </linearGradient>
         </defs>
 
-        {/* Background grid pattern */}
         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M 20 0 L 0 0 0 20" fill="none" stroke="url(#grid-grad)" strokeWidth="0.5" />
         </pattern>
         <rect width="100%" height="100%" fill="url(#grid)" />
 
-        {allTransitions.map(([from, to]) => renderTransitionArrow(from, to))}
+        <g transform={`translate(${position.x}, ${position.y}) scale(${scale})`}>
+          {allTransitions.map(([from, to]) => renderTransitionArrow(from, to))}
 
-        {(Object.keys(STATE_POSITIONS) as FSMState[]).map((state) => {
-          const pos = STATE_POSITIONS[state]
-          const config = STATE_CONFIGS[state]
-          const isActive = currentState === state
-          const canTransition = VALID_TRANSITIONS[currentState].includes(state)
+          {(Object.keys(STATE_POSITIONS) as FSMState[]).map((state) => {
+            const pos = STATE_POSITIONS[state]
+            const config = STATE_CONFIGS[state]
+            const isActive = currentState === state
+            const canTransition = VALID_TRANSITIONS[currentState].includes(state)
 
-          return (
-            <g key={state} transform={`translate(${pos.x}, ${pos.y})`}>
-              {/* Outer glow for active state */}
-              {isActive && (
-                <motion.path
-                  d={HEXAGON_PATH}
-                  fill="none"
-                  stroke={config.hexColor}
-                  strokeWidth="1"
-                  opacity={0.4}
-                  filter="url(#glow-filter)"
-                  animate={{
-                    scale: [1, 1.15, 1],
-                    opacity: [0.2, 0.5, 0.2],
+            return (
+               <g
+                  key={state}
+                  transform={`translate(${pos.x}, ${pos.y})`}
+                  onClick={(e) => {
+                    e.stopPropagation() // Prevent drag start when clicking node
+                    if (canTransition) onStateClick(state)
                   }}
-                  transition={{
-                    duration: 2,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "easeInOut",
-                  }}
-                />
-              )}
+                  className={canTransition ? "cursor-pointer" : "cursor-default"}
+                >
+                  {/* Outer glow for active state */}
+                  {isActive && (
+                    <motion.path
+                      d={HEXAGON_PATH}
+                      fill="none"
+                      stroke={config.hexColor}
+                      strokeWidth="1"
+                      opacity={0.4}
+                      filter="url(#glow-filter)"
+                      animate={{
+                        scale: [1, 1.15, 1],
+                        opacity: [0.2, 0.5, 0.2],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )}
 
-              {/* Main hexagon shape */}
-              <motion.path
-                d={HEXAGON_PATH}
-                fill={isActive ? `${config.hexColor}15` : "#111827"}
-                stroke={config.hexColor}
-                strokeWidth={isActive ? 2 : 1}
-                opacity={isActive ? 1 : 0.6}
-                style={{ cursor: canTransition || isActive ? "pointer" : "not-allowed" }}
-                onClick={() => canTransition && onStateClick(state)}
-                whileHover={canTransition ? { scale: 1.08, opacity: 1 } : {}}
-                transition={{ duration: 0.2 }}
-              />
+                  {/* Hexagon Shape */}
+                  <motion.path
+                    d={HEXAGON_PATH}
+                    fill={isActive ? `${config.hexColor}15` : "#111827"}
+                    stroke={config.hexColor}
+                    strokeWidth={isActive ? 2 : 1}
+                    opacity={isActive ? 1 : 0.6}
+                    initial={{ scale: 1, opacity: 0.8 }}
+                    animate={{
+                      scale: isActive ? 1.1 : 1,
+                      opacity: isActive || canTransition ? 1 : 0.5,
+                      stroke: isActive || canTransition ? config.hexColor : "gray",
+                    }}
+                    whileHover={canTransition ? { scale: 1.08, opacity: 1 } : {}}
+                    transition={{ duration: 0.2 }}
+                  />
 
-              {/* Inner content */}
-              <foreignObject x={-40} y={-40} width={80} height={80} style={{ pointerEvents: "none" }}>
-                <div className="flex flex-col items-center justify-center h-full gap-2">
-                  <div style={{ color: config.hexColor }}>{STATE_ICONS[state]}</div>
-                  <span className="text-[12px] font-mono font-semibold tracking-wide" style={{ color: config.hexColor }}>
-                    {state}
-                  </span>
-                </div>
-              </foreignObject>
+                  {/* Inner content */}
+                  <foreignObject x={-40} y={-40} width={80} height={80} style={{ pointerEvents: "none" }}>
+                    <div className="flex flex-col items-center justify-center h-full gap-2">
+                      <div style={{ color: config.hexColor }}>{STATE_ICONS[state]}</div>
+                      <span className="text-[12px] font-mono font-semibold tracking-wide" style={{ color: config.hexColor }}>
+                        {state}
+                      </span>
+                    </div>
+                  </foreignObject>
 
-              {/* Power label below */}
-              <text y={70} textAnchor="middle" className="text-[12px] fill-muted-foreground font-mono">
-                {config.power}mW
-              </text>
+                  {/* Power label below */}
+                  <text y={70} textAnchor="middle" className="text-[12px] fill-muted-foreground font-mono">
+                    {config.power}mW
+                  </text>
 
-              {/* Status indicator */}
-              {isActive && (
-                <motion.circle
-                  cx={38}
-                  cy={-45}
-                  r={6}
-                  fill={config.hexColor}
-                  animate={{
-                    opacity: [1, 0.4, 1],
-                  }}
-                  transition={{
-                    duration: 1,
-                    repeat: Number.POSITIVE_INFINITY,
-                  }}
-                />
-              )}
-            </g>
-          )
-        })}
-
-        {/* Legend */}
-        <g transform="translate(20, 340)">
-          <text className="text-[10px] fill-muted-foreground font-mono">
-            VALID TRANSITIONS — CLICK TO NAVIGATE (MANUAL MODE)
-          </text>
+                  {/* Status indicator */}
+                  {isActive && (
+                    <motion.circle
+                      cx={38}
+                      cy={-45}
+                      r={6}
+                      fill={config.hexColor}
+                      animate={{
+                        opacity: [1, 0.4, 1],
+                      }}
+                      transition={{
+                        duration: 1,
+                        repeat: Number.POSITIVE_INFINITY,
+                      }}
+                    />
+                  )}
+                </g>
+            )
+          })}
         </g>
       </svg>
     </div>
