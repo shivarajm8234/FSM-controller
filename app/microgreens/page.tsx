@@ -3,7 +3,7 @@
 import { useFSMController } from "@/hooks/use-fsm-controller"
 import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -142,6 +142,7 @@ export default function MicrogreensPage() {
   // If we have crops, we reduce. If we don't, Indoor = Outdoor.
   // User requested both equal initially: Removed passive wall protection.
   const wallProtection = 0 
+  const currentDay = 5 // Static day for FSM demo
   const indoorAQI = Math.max(0, Number((aqi - wallProtection - currentReduction).toFixed(1)))
   
   // Track History (Real-time updates)
@@ -196,14 +197,17 @@ export default function MicrogreensPage() {
     // Predict Next 5 Days (Cumulative Impact)
     const generatePrediction = () => {
         const data = []
+        // Start with current
+        data.push({ day: 'Today', predicted: aqi, original: aqi })
+        
+        let currentLevel = aqi
         for (let i = 1; i <= 5; i++) {
-             // Cumulative Reduction: Reduction * Days Active
-             const accumulatedReduction = currentReduction * i
-             const projectedPassive = 0 // Removed to match live logic
-             // In a sealed room, total reduction accumulates
-             const target = Math.max(0, aqi - (projectedPassive + accumulatedReduction))
-
-             data.push({ day: `Day +${i}`, predicted: Number(target.toFixed(1)) })
+             // Simulate non-linear decay (effectiveness decreases as air gets cleaner)
+             // Reduction per step = current_reduction but scaled slightly by how "dirty" the air still is (optional physics)
+             // simplified: uniform reduction is fine, but let's make it robust
+             currentLevel = Math.max(0, currentLevel - currentReduction)
+             
+             data.push({ day: `Day +${i}`, predicted: Number(currentLevel.toFixed(1)) })
         }
         setPredictionData(data)
         setShowPrediction(true)
@@ -212,7 +216,7 @@ export default function MicrogreensPage() {
   // 1️⃣ Daily AQI → Food Suggestion Logic (Updated with Time & Growth)
   const getNutritionAdvice = () => {
     // Current Sim Day (Default to mid-growth for FSM mode)
-    const currentDay = 5 
+    // const currentDay = 5  <-- Now using component-level state 
 
     // Priority: Active Crops Growth Stage
     if (myCrops.length > 0) {
@@ -539,7 +543,7 @@ export default function MicrogreensPage() {
                         <div className="space-y-4">
                             {myCrops.map(id => {
                                 const crop = cropDatabase.find(c => c.id === id)!
-                                const currentDay = 5 // Static day for FSM mode
+                                // const currentDay = 5 // Static day for FSM mode
                                 const success = calculateSuccess(crop)
                                 const isReady = false
                                 const progress = 50 
@@ -868,20 +872,45 @@ export default function MicrogreensPage() {
                 
                 <div className="h-[200px] w-full mt-4">
                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={predictionData}>
+                        <AreaChart data={predictionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorPred" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
                                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
-                            <XAxis dataKey="day" tick={{fontSize: 10, fill: '#888'}} />
-                            <YAxis domain={[0, 'auto']} tick={{fontSize: 10, fill: '#888'}} />
-                            <Tooltip 
-                                contentStyle={{ backgroundColor: '#000', borderRadius: '8px', border: '1px solid #333', fontSize: '10px' }}
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                            <XAxis 
+                                dataKey="day" 
+                                tick={{fontSize: 10, fill: '#71717a'}} 
+                                axisLine={false}
+                                tickLine={false}
+                                tickMargin={10}
                             />
-                            <Area type="monotone" dataKey="predicted" name="Predicted AQI" stroke="#10b981" fillOpacity={1} fill="url(#colorPred)" strokeWidth={2} />
+                            <YAxis 
+                                domain={[0, 'auto']} 
+                                tick={{fontSize: 10, fill: '#71717a'}} 
+                                axisLine={false}
+                                tickLine={false}
+                            />
+                            <Tooltip 
+                                contentStyle={{ backgroundColor: '#18181b', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                itemStyle={{ color: '#10b981' }}
+                                labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
+                            />
+                            <ReferenceLine y={50} stroke="#eab308" strokeDasharray="3 3">
+                                <Label value="Safe Level (50)" position="insideTopRight" fill="#eab308" fontSize={9} />
+                            </ReferenceLine>
+                            <Area 
+                                type="monotone" 
+                                dataKey="predicted" 
+                                name="Projected AQI" 
+                                stroke="#10b981" 
+                                strokeWidth={2}
+                                fillOpacity={1} 
+                                fill="url(#colorPred)" 
+                                animationDuration={1500}
+                            />
                         </AreaChart>
                      </ResponsiveContainer>
                 </div>
