@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { useSoundEffects } from "@/hooks/use-sound-effects"
+import { MicrogreensButton } from "@/components/microgreens-button"
 import { useState } from "react"
 
 export default function Home() {
@@ -100,6 +101,8 @@ export default function Home() {
                 <span className="hidden sm:inline text-xs">View</span>
               </Button>
             </DropdownMenuTrigger>
+            
+            <MicrogreensButton />
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Toggle Sections</DropdownMenuLabel>
               <DropdownMenuSeparator />
