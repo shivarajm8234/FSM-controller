@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -24,10 +26,9 @@ export default function MicrogreensPage() {
   const { 
     currentState, 
     sensorData, 
-    lastUpdate, 
-    sendInput, 
-    logs, 
-    transitionTo 
+    transitionTo,
+    isAutoMode,
+    setIsAutoMode
   } = useFSMController()
 
   const [mounted, setMounted] = useState(false)
@@ -47,20 +48,57 @@ export default function MicrogreensPage() {
   }, [])
 
   // Extended Crop Database with Specific Needs & Purification Power
-  const CROP_DATABASE = [
-      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 7, idealTemp: 22, idealHum: 50, purification: 1.0, mechanism: "Fast transpiration & fine leaf texture trap PM2.5.", icon: <Leaf className="w-4 h-4" /> },
-      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 10, idealTemp: 20, idealHum: 60, purification: 0.8, mechanism: "Broad leaves enhance particulate deposition.", icon: <Sprout className="w-4 h-4" /> },
-      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 12, idealTemp: 24, idealHum: 45, purification: 1.8, mechanism: "Large leaves & high photosynthesis capture particles.", icon: <Sun className="w-4 h-4" /> },
-      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 8, idealTemp: 21, idealHum: 55, purification: 1.2, mechanism: "Dense foliage & stomatal activity absorb VOCs.", icon: <Wind className="w-4 h-4" /> },
-      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 14, idealTemp: 23, idealHum: 65, purification: 0.7, mechanism: "Moderate leaf area; supportive filtration role.", icon: <Droplets className="w-4 h-4" /> },
+  const [cropDatabase, setCropDatabase] = useState([
+      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 7, harvestRange: "6-8", notes: "Very fast growth, early AQI impact starts ~Day 3", idealTemp: 22, idealHum: 50, purification: 0.8, mechanism: "High transpiration rate, fine leaf texture → effective PM2.5 dust capture.", icon: <Leaf className="w-4 h-4" /> },
+      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 10, harvestRange: "10-14", notes: "Slower start, stronger effect after leaf expansion", idealTemp: 20, idealHum: 60, purification: 0.65, mechanism: "Broad leaves enhance particulate deposition and CO₂ uptake.", icon: <Sprout className="w-4 h-4" /> },
+      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 12, harvestRange: "7-10", notes: "Large leaves → strongest AQI impact from Day 4 onward", idealTemp: 24, idealHum: 45, purification: 1.5, mechanism: "Large leaf surface area + strong photosynthesis → maximum particulate interaction.", icon: <Sun className="w-4 h-4" /> },
+      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 8, harvestRange: "7-9", notes: "Dense foliage, consistent mid-cycle impact", idealTemp: 21, idealHum: 55, purification: 1.0, mechanism: "Dense foliage, higher stomatal activity → moderate VOC and dust interaction.", icon: <Wind className="w-4 h-4" /> },
+      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 14, harvestRange: "10-14", notes: "Slower growth, stabilizing AQI role", idealTemp: 23, idealHum: 65, purification: 0.55, mechanism: "Moderate leaf area → supportive, stabilizing role.", icon: <Droplets className="w-4 h-4" /> },
       // Outdoor Specific (High Durability)
-      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 16, idealTemp: 15, idealHum: 70, purification: 0.5, mechanism: "Soft leaves & low transpiration; supporting role.", icon: <CloudRain className="w-4 h-4" /> },
-      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 18, idealTemp: 12, idealHum: 80, purification: 0.6, mechanism: "Steady photosynthesis & moderate dust deposition.", icon: <ShieldCheck className="w-4 h-4" /> },
-  ]
+      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 16, harvestRange: "8-12", notes: "Cooler-temp crop, modest air-clean contribution", idealTemp: 15, idealHum: 70, purification: 0.45, mechanism: "Lower transpiration, smaller leaves → mild particulate trapping.", icon: <CloudRain className="w-4 h-4" /> },
+      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 18, harvestRange: "10-15", notes: "Slow but steady growth, late-cycle effect", idealTemp: 16, idealHum: 80, purification: 0.55, mechanism: "Steady photosynthesis, moderate leaf density → consistent but limited impact.", icon: <ShieldCheck className="w-4 h-4" /> },
+  ])
+
+  // New Crop State
+  const [isAddCropOpen, setIsAddCropOpen] = useState(false)
+  const [newCrop, setNewCrop] = useState({
+      name: "",
+      level: "Beginner",
+      indoorSafe: true,
+      days: 7,
+      idealTemp: 22,
+      idealHum: 50,
+      purification: 0.5,
+      mechanism: ""
+  })
+
+  // Add New Crop Handler
+  const handleAddCrop = () => {
+      const id = newCrop.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString().slice(-4)
+      const entry = {
+          id,
+          ...newCrop,
+          icon: <Sprout className="w-4 h-4" /> // Default icon
+      }
+      setCropDatabase(prev => [...prev, entry])
+      setMyCrops(prev => [...prev, id]) // Auto-add to my crops
+      setIsAddCropOpen(false)
+      // Reset form
+      setNewCrop({
+        name: "",
+        level: "Beginner",
+        indoorSafe: true,
+        days: 7,
+        idealTemp: 22,
+        idealHum: 50,
+        purification: 0.5,
+        mechanism: ""
+      })
+  }
 
   // Calculate Impact 
   const totalPurification = myCrops.reduce((acc, id) => {
-      const crop = CROP_DATABASE.find(c => c.id === id)
+      const crop = cropDatabase.find(c => c.id === id)
       return acc + (crop?.purification || 0)
   }, 0)
   
@@ -102,8 +140,8 @@ export default function MicrogreensPage() {
   
   // Direct Indoor AQI Calculation
   // If we have crops, we reduce. If we don't, Indoor = Outdoor.
-  // Adding small passive wall protection (5%) if in Indoor Mode.
-  const wallProtection = isIndoorRequired ? aqi * 0.05 : 0
+  // User requested both equal initially: Removed passive wall protection.
+  const wallProtection = 0 
   const indoorAQI = Math.max(0, Number((aqi - wallProtection - currentReduction).toFixed(1)))
   
   // Track History (Real-time updates)
@@ -127,9 +165,24 @@ export default function MicrogreensPage() {
       }, 5000)
       return () => clearInterval(timer)
   }, [indoorAQI, aqi])
+
+  // Automatic "Force Indoor" Safety Logic
+  // If conditions are dangerous (reason !== "") AND we have crops that need protection ("BRING INSIDE" status),
+  // automatically enable the Indoor Mode toggle to latch the safety state.
+  useEffect(() => {
+    const hasAtRiskCrops = myCrops.some(id => {
+       const crop = cropDatabase.find(c => c.id === id)
+       // Crops that are NOT indoorSafe need to be brought inside when conditions are bad
+       return crop && !crop.indoorSafe
+    })
+
+    if (reason !== "" && hasAtRiskCrops && !manualIndoor) {
+        setManualIndoor(true)
+    }
+  }, [reason, myCrops, manualIndoor])
   
   // Helper: Calculate Success Score per Crop
-  const calculateSuccess = (crop: typeof CROP_DATABASE[0]) => {
+  const calculateSuccess = (crop: typeof cropDatabase[0]) => {
       const tempDev = Math.abs(temp - crop.idealTemp)
       const humDev = Math.abs(hum - crop.idealHum)
       const pollutionPenalty = aqi > 150 ? 20 : 0
@@ -146,7 +199,7 @@ export default function MicrogreensPage() {
         for (let i = 1; i <= 5; i++) {
              // Cumulative Reduction: Reduction * Days Active
              const accumulatedReduction = currentReduction * i
-             const projectedPassive = isIndoorRequired ? aqi * 0.05 : 0
+             const projectedPassive = 0 // Removed to match live logic
              // In a sealed room, total reduction accumulates
              const target = Math.max(0, aqi - (projectedPassive + accumulatedReduction))
 
@@ -163,7 +216,7 @@ export default function MicrogreensPage() {
 
     // Priority: Active Crops Growth Stage
     if (myCrops.length > 0) {
-        const crop = CROP_DATABASE.find(c => c.id === myCrops[0])
+        const crop = cropDatabase.find(c => c.id === myCrops[0])
         if (crop) {
             if (currentDay >= crop.days) {
                 return {
@@ -209,7 +262,7 @@ export default function MicrogreensPage() {
 
 
   // Filter suggestions
-  const activeSuggestions = CROP_DATABASE.filter(s => {
+  const activeSuggestions = cropDatabase.filter(s => {
       if (beginnerMode && s.level !== "Beginner") return false
       return true
   })
@@ -245,6 +298,11 @@ export default function MicrogreensPage() {
                 <div className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 p-1.5 rounded-lg border border-zinc-200 dark:border-white/5 shadow-sm">
                     <span className="text-xs text-muted-foreground pl-2">Beginner Mode</span>
                     <Switch checked={beginnerMode} onCheckedChange={setBeginnerMode} className="data-[state=checked]:bg-emerald-500" />
+                </div>
+
+                <div className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 p-1.5 rounded-lg border border-zinc-200 dark:border-white/5 shadow-sm">
+                    <span className="text-xs text-muted-foreground pl-2">Auto Run</span>
+                    <Switch checked={isAutoMode} onCheckedChange={setIsAutoMode} className="data-[state=checked]:bg-emerald-500" />
                 </div>
                 <Link href="/">
                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-zinc-900 dark:hover:text-white">
@@ -480,7 +538,7 @@ export default function MicrogreensPage() {
                     ) : (
                         <div className="space-y-4">
                             {myCrops.map(id => {
-                                const crop = CROP_DATABASE.find(c => c.id === id)!
+                                const crop = cropDatabase.find(c => c.id === id)!
                                 const currentDay = 5 // Static day for FSM mode
                                 const success = calculateSuccess(crop)
                                 const isReady = false
@@ -545,9 +603,19 @@ export default function MicrogreensPage() {
 
                  {/* Available Crops List */}
                  <div className="space-y-3">
-                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                        <PlusSquare className="w-3 h-3 text-emerald-500" />
-                        Add Crops to Filter Air
+                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                             <PlusSquare className="w-3 h-3 text-emerald-500" />
+                             Add Crops to Filter Air
+                        </div>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 text-[10px] text-emerald-500 hover:text-emerald-400 p-0 hover:bg-transparent"
+                            onClick={() => setIsAddCropOpen(true)}
+                        >
+                            + Custom
+                        </Button>
                      </h3>
                      <ScrollArea className="h-[300px]">
                         <div className="space-y-2 pr-4">
@@ -615,92 +683,167 @@ export default function MicrogreensPage() {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {myCrops.map(id => {
-                                const crop = CROP_DATABASE.find(c => c.id === id)!
+                                const crop = cropDatabase.find(c => c.id === id)!
                                 const success = calculateSuccess(crop)
                                 const successColor = success > 70 ? "bg-emerald-500" : success > 40 ? "bg-yellow-500" : "bg-red-500"
                                 
                                 return (
-                                    <Card key={id} className="p-4 bg-zinc-900/60 border-white/10 flex flex-col gap-4 relative overflow-hidden">
+                                    <Card key={id} className="p-4 bg-zinc-900/80 border-white/10 flex flex-col gap-4 relative overflow-hidden backdrop-blur-sm group hover:border-emerald-500/30 transition-all duration-300">
                                         
-                                        {/* Status Header */}
+                                        {/* Header Section */}
                                         <div className="flex justify-between items-start z-10">
                                             <div className="flex items-center gap-3">
-                                                 <div className="p-2 bg-white/5 rounded-lg text-emerald-400 border border-white/5">
+                                                 <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-900/20">
                                                      {crop.icon}
                                                  </div>
                                                  <div>
-                                                     <h4 className="font-bold text-white text-base">{crop.name}</h4>
-                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <Badge className="bg-blue-500/20 text-blue-300 h-4 px-1 text-[9px] border-0">
-                                                            Filter Lv.{crop.purification}
-                                                        </Badge>
+                                                     <h4 className="font-bold text-white text-base leading-tight">{crop.name}</h4>
+                                                     <div className="text-[10px] text-zinc-400 leading-tight mt-1 max-w-[150px] line-clamp-1" title={crop.mechanism}>
+                                                        {crop.mechanism.split(' ')[0]} Action
                                                      </div>
                                                  </div>
                                             </div>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-600 hover:text-red-400" onClick={() => toggleCrop(id)}>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-zinc-600 hover:text-red-400 -mr-2 -mt-2" onClick={() => toggleCrop(id)}>
                                                 <X className="w-3 h-3" />
                                             </Button>
                                         </div>
 
-                                        {/* Success Predictor */}
-                                        <div className="z-10">
-                                            <div className="flex justify-between text-[10px] mb-1">
-                                                <span className="text-gray-400 uppercase tracking-widest">Growth Success</span>
-                                                <span className={success > 70 ? "text-emerald-400" : "text-amber-400"}>{Math.round(success)}%</span>
+                                        <Separator className="bg-white/5" />
+
+                                        {/* Detailed Stats Grid */}
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 z-10">
+                                            {/* Filtration Effectiveness */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px]">
+                                                    <span className="text-zinc-500">Filtration Eff.</span>
+                                                    <span className="text-emerald-400 font-mono">Lv.{crop.purification}</span>
+                                                </div>
+                                                <Progress value={crop.purification * 20} className="h-1 bg-white/5 text-emerald-500" />
                                             </div>
-                                            {/* Fix: use style or customized component if indicatorClassName fails, but for now apply to class to attempt fix */}
-                                            <Progress value={success} className={cn("h-1 bg-white/10", successColor.replace('bg-', 'text-'))} />
+
+                                            {/* Growth Success Predictor */}
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-[10px]">
+                                                    <span className="text-zinc-500">Growth Viability</span>
+                                                    <span className={cn("font-mono", success > 70 ? "text-emerald-400" : "text-amber-400")}>{Math.round(success)}%</span>
+                                                </div>
+                                                <Progress value={success} className={cn("h-1 bg-white/5", successColor.replace('bg-', 'text-'))} />
+                                            </div>
                                         </div>
 
-                                        {/* Smart Features Grid */}
-                                        <div className="grid grid-cols-2 gap-2 z-10 mt-auto">
+                                        {/* Growth Timeline */}
+                                        <div className="bg-zinc-950/50 rounded-lg p-2 border border-white/5 space-y-1.5 z-10">
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <div className="flex flex-col">
+                                                    <span className="text-zinc-500">Planted</span>
+                                                    <span className="text-white font-medium">Day 0</span>
+                                                </div>
+                                                
+                                                {/* Current Day Indicator */}
+                                                <div className="flex flex-col items-center">
+                                                    <div className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 mb-0.5">
+                                                        Day {currentDay}
+                                                    </div>
+                                                    <ArrowRight className="w-3 h-3 text-zinc-700" />
+                                                </div>
+
+                                                 <div className="flex flex-col items-end">
+                                                    <span className="text-zinc-500">Harvest</span>
+                                                    <span className="text-emerald-400 font-medium">Day {crop.harvestRange || crop.days}</span>
+                                                </div>
+                                            </div>
+                                            {(crop.notes) && (
+                                                <div className="text-[9px] text-zinc-400 leading-normal border-t border-white/5 pt-1 mt-1 font-medium bg-gradient-to-r from-zinc-400 to-zinc-500 bg-clip-text text-transparent">
+                                                    {crop.notes}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Status Indicators (Badge Style) */}
+                                        <div className="grid grid-cols-2 gap-2 mt-auto pt-2">
                                             {/* Safety Check */}
-                                            <div className={`p-2 rounded bg-black/40 border border-white/5 flex flex-col items-center text-center ${isIndoorRequired && !crop.indoorSafe ? 'border-red-500/30 bg-red-500/5' : ''}`}>
-                                                 {isIndoorRequired ? (
+                                            <div className={cn(
+                                                "px-2 py-1.5 rounded-md border flex flex-col items-center justify-center text-center transition-colors",
+                                                reason !== "" && !manualIndoor && !crop.indoorSafe
+                                                    ? "bg-red-500/10 border-red-500/20 text-red-400" 
+                                                    : "bg-emerald-500/5 border-emerald-500/20 text-emerald-400"
+                                            )}>
+                                                 {manualIndoor ? (
+                                                     // Manual Override -> ALWAYS PROTECTED
+                                                     <>
+                                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                                            <ShieldCheck className="w-3 h-3" />
+                                                            <span className="text-[10px] font-bold">Protected</span>
+                                                        </div>
+                                                        <span className="text-[9px] opacity-80">Safe Inside</span>
+                                                     </>
+                                                 ) : reason !== "" ? (
                                                      // Dangerous Outside
                                                      !crop.indoorSafe ? (
                                                         <>
-                                                            <AlertTriangle className="w-3 h-3 text-red-500 mb-1 animate-pulse" />
-                                                            <span className="text-[9px] text-red-500 font-bold">BRING INSIDE</span>
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <AlertTriangle className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold">Unsafe</span>
+                                                            </div>
+                                                            <span className="text-[9px] opacity-80">Bring Inside</span>
                                                         </>
                                                      ) : (
                                                         <>
-                                                            <ShieldAlert className="w-3 h-3 text-amber-500 mb-1" />
-                                                            <span className="text-[9px] text-amber-500 font-bold">PROTECTED</span>
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <ShieldCheck className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold">Protected</span>
+                                                            </div>
+                                                            <span className="text-[9px] opacity-80">Safe Indoor</span>
                                                         </>
                                                      )
                                                  ) : (
                                                      // Safe Outside
                                                      !crop.indoorSafe ? (
                                                         <>
-                                                            <Sun className="w-3 h-3 text-emerald-500 mb-1" />
-                                                            <span className="text-[9px] text-emerald-500 font-bold">OUTDOOR BEST</span>
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <Sun className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold">Optimal</span>
+                                                            </div>
+                                                            <span className="text-[9px] opacity-80">Outdoor Best</span>
                                                         </>
                                                      ) : (
                                                         <>
-                                                            <CheckCircle className="w-3 h-3 text-blue-500 mb-1" />
-                                                            <span className="text-[9px] text-blue-400 font-bold">INDOOR OK</span>
+                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                <CheckCircle className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold">Stable</span>
+                                                            </div>
+                                                            <span className="text-[9px] opacity-80">Indoor OK</span>
                                                         </>
                                                      )
                                                  )}
                                             </div>
 
-                                            {/* Harvest Safety */}
-                                            <div className="p-2 rounded bg-black/40 border border-white/5 flex flex-col items-center text-center">
+                                            {/* Harvest/Air Safety */}
+                                            <div className={cn(
+                                                "px-2 py-1.5 rounded-md border flex flex-col items-center justify-center text-center",
+                                                (sensorData?.aqi ?? 0) > 100 
+                                                    ? "bg-amber-500/10 border-amber-500/20 text-amber-400" 
+                                                    : "bg-blue-500/5 border-blue-500/20 text-blue-400"
+                                            )}>
                                                 {(sensorData?.aqi ?? 0) > 100 ? (
                                                     <>
-                                                        <CloudRain className="w-3 h-3 text-blue-400 mb-1" />
-                                                        <span className="text-[9px] text-blue-300 font-bold">WASH WELL</span>
+                                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                                            <CloudRain className="w-3 h-3" />
+                                                            <span className="text-[10px] font-bold">Risk</span>
+                                                        </div>
+                                                        <span className="text-[9px] opacity-80">Wash Recommended</span>
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <CheckCircle className="w-3 h-3 text-green-500 mb-1" />
-                                                        <span className="text-[9px] text-green-400 font-bold">CLEAN AIR</span>
+                                                        <div className="flex items-center gap-1.5 mb-0.5">
+                                                            <Leaf className="w-3 h-3" />
+                                                            <span className="text-[10px] font-bold">Clean</span>
+                                                        </div>
+                                                        <span className="text-[9px] opacity-80">Harvest Ready</span>
                                                     </>
                                                 )}
                                             </div>
                                         </div>
-
                                     </Card>
                                 )
                             })}
@@ -753,6 +896,80 @@ export default function MicrogreensPage() {
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* Add Crop Dialog */}
+        <Dialog open={isAddCropOpen} onOpenChange={setIsAddCropOpen}>
+            <DialogContent className="bg-zinc-900 border-white/10 text-white sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Add Custom Plant</DialogTitle>
+                    <DialogDescription className="text-zinc-400">
+                        Enter details for a new microgreen or plant to simulate its purification effects.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="name" className="text-right text-xs">Name</Label>
+                        <Input 
+                            id="name" 
+                            value={newCrop.name} 
+                            onChange={(e) => setNewCrop({...newCrop, name: e.target.value})}
+                            className="col-span-3 bg-zinc-800 border-white/10 h-8 text-xs" 
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="purification" className="text-right text-xs">Purification</Label>
+                        <div className="col-span-3 flex items-center gap-2">
+                             <Input 
+                                id="purification" 
+                                type="number" 
+                                step="0.1"
+                                value={newCrop.purification} 
+                                onChange={(e) => setNewCrop({...newCrop, purification: parseFloat(e.target.value)})}
+                                className="bg-zinc-800 border-white/10 h-8 text-xs w-20" 
+                            />
+                            <span className="text-[10px] text-muted-foreground">pts/day decrease</span>
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="temp" className="text-right text-xs">Ideal Temp</Label>
+                         <div className="col-span-3 flex items-center gap-2">
+                            <Input 
+                                id="temp" 
+                                type="number" 
+                                value={newCrop.idealTemp} 
+                                onChange={(e) => setNewCrop({...newCrop, idealTemp: parseFloat(e.target.value)})}
+                                className="bg-zinc-800 border-white/10 h-8 text-xs w-20" 
+                            />
+                            <span className="text-[10px] text-muted-foreground">°C</span>
+                         </div>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right text-xs">Placement</Label>
+                         <div className="col-span-3 flex items-center gap-4">
+                             <div className="flex items-center space-x-2">
+                                <Switch id="indoor-safe" checked={newCrop.indoorSafe} onCheckedChange={(c) => setNewCrop({...newCrop, indoorSafe: c})} />
+                                <Label htmlFor="indoor-safe" className="text-xs">Indoor Safe?</Label>
+                             </div>
+                         </div>
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="desc" className="text-right text-xs">Mechanism</Label>
+                        <Input 
+                            id="desc" 
+                            value={newCrop.mechanism} 
+                            onChange={(e) => setNewCrop({...newCrop, mechanism: e.target.value})}
+                            className="col-span-3 bg-zinc-800 border-white/10 h-8 text-xs" 
+                            placeholder="e.g. Broad leaves trap dust"
+                        />
+                    </div>
+                </div>
+                 <div className="flex justify-end">
+                    <Button onClick={handleAddCrop} className="bg-emerald-600 hover:bg-emerald-700 h-8 text-xs">
+                        Add Plant
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>
   )
 }
@@ -773,6 +990,12 @@ function X(props: any) {
 function TrendingUpIcon(props: any) {
   return (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+  )
+}
+
+function Plus(props: any) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
   )
 }
 
