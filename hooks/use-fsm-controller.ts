@@ -40,7 +40,7 @@ const calculateAQI = (pm25: number, pm10: number) => {
   // The sensor at this location consistently reads slightly lower than the official station.
   // We apply a +10% + 2 point calibration curve for 'Moderate' levels to match local reporting.
   if (aqi > 50 && aqi < 80) {
-      aqi = aqi + 7
+      aqi = aqi+1
   }
 
   aqi = Math.round(aqi)
@@ -78,6 +78,7 @@ export function useFSMController() {
   ])
   const [sensorAddresses, setSensorAddresses] = useState<Record<string, string>>({})
   const [simulationMode, setSimulationMode] = useState<"NORMAL" | "FIRE" | "FALLOUT" | "FAULT" | "BATTERY_LOW">("NORMAL")
+  const [myCrops, setMyCrops] = useState<string[]>([])
 
   const [powerHistory, setPowerHistory] = useState<PowerDataPoint[]>([])
   const [sensorHistory, setSensorHistory] = useState<SensorHistoryPoint[]>([])
@@ -699,5 +700,8 @@ export function useFSMController() {
     sensorHistory,
     simulationMode,
     setSimulationMode,
+    myCrops,
+    toggleCrop: (id: string) => setMyCrops(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]),
+    addCrop: (id: string) => setMyCrops(prev => [...prev, id]),
   }
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { MicrogreensGrid } from "@/components/microgreens-grid"
 import { useFSMController } from "@/hooks/use-fsm-controller"
 import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
@@ -28,12 +29,15 @@ export default function MicrogreensPage() {
     sensorData, 
     transitionTo,
     isAutoMode,
-    setIsAutoMode
+    setIsAutoMode,
+    myCrops,
+    toggleCrop,
+    addCrop
   } = useFSMController()
 
   const [mounted, setMounted] = useState(false)
   const [beginnerMode, setBeginnerMode] = useState(true)
-  const [myCrops, setMyCrops] = useState<string[]>([])
+
   
   // Real-time Indoor/Outdoor Config
   const [manualIndoor, setManualIndoor] = useState(false)
@@ -49,14 +53,14 @@ export default function MicrogreensPage() {
 
   // Extended Crop Database with Specific Needs & Purification Power
   const [cropDatabase, setCropDatabase] = useState([
-      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 7, harvestRange: "6-8", notes: "Very fast growth, early AQI impact starts ~Day 3", idealTemp: 22, idealHum: 50, purification: 0.8, mechanism: "High transpiration rate, fine leaf texture → effective PM2.5 dust capture.", icon: <Leaf className="w-4 h-4" /> },
-      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 10, harvestRange: "10-14", notes: "Slower start, stronger effect after leaf expansion", idealTemp: 20, idealHum: 60, purification: 0.65, mechanism: "Broad leaves enhance particulate deposition and CO₂ uptake.", icon: <Sprout className="w-4 h-4" /> },
-      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 12, harvestRange: "7-10", notes: "Large leaves → strongest AQI impact from Day 4 onward", idealTemp: 24, idealHum: 45, purification: 1.5, mechanism: "Large leaf surface area + strong photosynthesis → maximum particulate interaction.", icon: <Sun className="w-4 h-4" /> },
-      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 8, harvestRange: "7-9", notes: "Dense foliage, consistent mid-cycle impact", idealTemp: 21, idealHum: 55, purification: 1.0, mechanism: "Dense foliage, higher stomatal activity → moderate VOC and dust interaction.", icon: <Wind className="w-4 h-4" /> },
-      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 14, harvestRange: "10-14", notes: "Slower growth, stabilizing AQI role", idealTemp: 23, idealHum: 65, purification: 0.55, mechanism: "Moderate leaf area → supportive, stabilizing role.", icon: <Droplets className="w-4 h-4" /> },
+      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 30, harvestRange: "30-45", notes: "Very fast growth, early AQI impact starts ~Day 3", idealTemp: 22, idealHum: 50, purification: 0.8, mechanism: "High transpiration rate, fine leaf texture → effective PM2.5 dust capture.", icon: <Leaf className="w-4 h-4" /> },
+      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 60, harvestRange: "60-70", notes: "Slower start, stronger effect after leaf expansion", idealTemp: 20, idealHum: 60, purification: 0.65, mechanism: "Broad leaves enhance particulate deposition and CO₂ uptake.", icon: <Sprout className="w-4 h-4" /> },
+      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 70, harvestRange: "70-100", notes: "Large leaves → strongest AQI impact from Day 4 onward", idealTemp: 24, idealHum: 45, purification: 1.5, mechanism: "Large leaf surface area + strong photosynthesis → maximum particulate interaction.", icon: <Sun className="w-4 h-4" /> },
+      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 40, harvestRange: "30-50", notes: "Dense foliage, consistent mid-cycle impact", idealTemp: 21, idealHum: 55, purification: 1.0, mechanism: "Dense foliage, higher stomatal activity → moderate VOC and dust interaction.", icon: <Wind className="w-4 h-4" /> },
+      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 50, harvestRange: "50-70", notes: "Slower growth, stabilizing AQI role", idealTemp: 23, idealHum: 65, purification: 0.55, mechanism: "Moderate leaf area → supportive, stabilizing role.", icon: <Droplets className="w-4 h-4" /> },
       // Outdoor Specific (High Durability)
-      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 16, harvestRange: "8-12", notes: "Cooler-temp crop, modest air-clean contribution", idealTemp: 15, idealHum: 70, purification: 0.45, mechanism: "Lower transpiration, smaller leaves → mild particulate trapping.", icon: <CloudRain className="w-4 h-4" /> },
-      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 18, harvestRange: "10-15", notes: "Slow but steady growth, late-cycle effect", idealTemp: 16, idealHum: 80, purification: 0.55, mechanism: "Steady photosynthesis, moderate leaf density → consistent but limited impact.", icon: <ShieldCheck className="w-4 h-4" /> },
+      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 45, harvestRange: "45-60", notes: "Cooler-temp crop, modest air-clean contribution", idealTemp: 15, idealHum: 70, purification: 0.45, mechanism: "Lower transpiration, smaller leaves → mild particulate trapping.", icon: <CloudRain className="w-4 h-4" /> },
+      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 40, harvestRange: "40-50", notes: "Slow but steady growth, late-cycle effect", idealTemp: 16, idealHum: 80, purification: 0.55, mechanism: "Steady photosynthesis, moderate leaf density → consistent but limited impact.", icon: <ShieldCheck className="w-4 h-4" /> },
   ])
 
   // New Crop State
@@ -81,7 +85,7 @@ export default function MicrogreensPage() {
           icon: <Sprout className="w-4 h-4" /> // Default icon
       }
       setCropDatabase(prev => [...prev, entry])
-      setMyCrops(prev => [...prev, id]) // Auto-add to my crops
+      addCrop(id) // Auto-add to my crops
       setIsAddCropOpen(false)
       // Reset form
       setNewCrop({
@@ -271,14 +275,12 @@ export default function MicrogreensPage() {
       return true
   })
 
-  const toggleCrop = (id: string) => {
-      setMyCrops(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
-  }
+
 
   if (!mounted) return null
   
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white p-4 font-mono overflow-x-hidden selection:bg-emerald-500/30 transition-colors duration-300">
+    <div className="h-screen w-full bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white p-4 font-mono overflow-hidden selection:bg-emerald-500/30 transition-colors duration-300 flex flex-col">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-zinc-200 dark:border-white/10 pb-4">
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]">
@@ -316,12 +318,9 @@ export default function MicrogreensPage() {
             </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* LEFT COLUMN */}
-            <div className="space-y-6 lg:col-span-1">
-                
-                 {/* Air Quality Impact Card */}
+        <MicrogreensGrid>
+          {{
+            impact: (
                  <Card 
                     className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 relative overflow-hidden shadow-sm cursor-pointer hover:border-emerald-500/50 transition-colors group"
                     onClick={generatePrediction}
@@ -417,9 +416,10 @@ export default function MicrogreensPage() {
                         </div>
                     </div>
                  </Card>
-
-                 {/* Environmental Monitor Card */}
-                 <Card className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 shadow-sm relative overflow-hidden">
+            ),
+            environment: (
+              <div className="h-full flex flex-col gap-4">
+                 <Card className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 shadow-sm relative overflow-hidden flex-1">
                      <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                             <ActivityIcon className="w-3 h-3 text-blue-500" />
@@ -527,7 +527,9 @@ export default function MicrogreensPage() {
                     </motion.div>
                 )}
 
-                 {/* Active Crop Intelligence Card */}
+              </div>
+            ),
+            intelligence: (
                  <Card className="p-4 bg-gradient-to-br from-purple-50 to-white dark:from-zinc-900 dark:to-black border-zinc-200 dark:border-white/10 shadow-sm relative overflow-hidden">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
                         <Utensils className="w-3 h-3 text-purple-500 dark:text-purple-400" />
@@ -604,9 +606,9 @@ export default function MicrogreensPage() {
                         </div>
                     )}
                  </Card>
-
-                 {/* Available Crops List */}
-                 <div className="space-y-3">
+            ),
+            library: (
+                 <div className="space-y-3 h-full flex flex-col">
                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                         <div className="flex items-center gap-2">
                              <PlusSquare className="w-3 h-3 text-emerald-500" />
@@ -653,13 +655,9 @@ export default function MicrogreensPage() {
                         </div>
                      </ScrollArea>
                  </div>
-            </div>
-
-            {/* CENTER & RIGHT (Keep existing structure but update crop card) */}
-             <div className="lg:col-span-3 space-y-6">
-                 
-                 {/* FSM Interaction Surface */}
-                 <Card className="p-0 overflow-hidden bg-black/60 border-white/10 h-[300px] relative group">
+            ),
+            fsm: (
+                 <Card className="p-0 overflow-hidden bg-black/60 border-white/10 h-full relative group">
                     <div className="absolute top-4 left-4 z-10 flex gap-2">
                          <Badge variant="outline" className="bg-white/80 dark:bg-black/80 backdrop-blur border-zinc-300 dark:border-white/20 text-xs px-2 py-0.5 gap-2">
                              <div className={`w-1.5 h-1.5 rounded-full ${isIndoorRequired ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`} />
@@ -671,9 +669,9 @@ export default function MicrogreensPage() {
                         <FSMDiagram currentState={currentState} onStateClick={handleStateClick} />
                     </div>
                  </Card>
-
-                 {/* MY SMART GARDEN SECTION */}
-                 <div>
+            ),
+            garden: (
+                 <div className="h-full">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Sprout className="w-5 h-5 text-emerald-400" />
                         My Smart Garden
@@ -853,9 +851,10 @@ export default function MicrogreensPage() {
                             })}
                         </div>
                     )}
-                 </div>
-             </div>
-        </div>
+                  </div>
+            ),
+          }}
+        </MicrogreensGrid>
 
         {/* Prediction Modal */}
         <Dialog open={showPrediction} onOpenChange={setShowPrediction}>

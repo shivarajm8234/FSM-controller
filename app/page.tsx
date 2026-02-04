@@ -24,6 +24,7 @@ import {
 
 import { useSoundEffects } from "@/hooks/use-sound-effects"
 import { MicrogreensButton } from "@/components/microgreens-button"
+import { MicrogreensWidget } from "@/components/microgreens-widget"
 import { useState } from "react"
 
 export default function Home() {
@@ -57,6 +58,7 @@ export default function Home() {
     sensors: true,
     power: true,
     map: true,
+    microgreens: true,
   })
 
   // Enable sound effects
@@ -187,7 +189,8 @@ export default function Home() {
               aqi={sensorData.aqi}
               aqiStatus={sensorData.aqiStatus}
             />
-          )
+          ),
+          microgreens: <MicrogreensWidget />
         }}
       </DashboardGrid>
     </main>

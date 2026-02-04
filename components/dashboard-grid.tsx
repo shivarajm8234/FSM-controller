@@ -23,6 +23,7 @@ interface DashboardGridProps {
     sensors: ReactNode
     power: ReactNode
     map: ReactNode
+    microgreens: ReactNode
   }
   visibleSections?: Record<string, boolean>
 }
@@ -36,7 +37,8 @@ const defaultLayouts: Layouts = {
     { i: "pollution", x: 3, y: 6, w: 6, h: 2 },
     { i: "sensors", x: 9, y: 0, w: 3, h: 3 },
     { i: "map", x: 9, y: 3, w: 3, h: 3 },
-    { i: "power", x: 9, y: 6, w: 3, h: 2 },
+    { i: "microgreens", x: 9, y: 6, w: 3, h: 2 },
+    { i: "power", x: 9, y: 8, w: 3, h: 2 },
   ],
   md: [
     { i: "fsm", x: 0, y: 0, w: 6, h: 5 },
@@ -45,7 +47,8 @@ const defaultLayouts: Layouts = {
     { i: "logs", x: 0, y: 5, w: 4, h: 3 },
     { i: "pollution", x: 4, y: 5, w: 4, h: 3 },
     { i: "power", x: 8, y: 5, w: 2, h: 3 },
-    { i: "map", x: 0, y: 8, w: 10, h: 3 },
+    { i: "map", x: 0, y: 8, w: 8, h: 3 },
+    { i: "microgreens", x: 8, y: 8, w: 2, h: 3 },
   ],
   sm: [
     { i: "fsm", x: 0, y: 0, w: 6, h: 4 },
@@ -54,7 +57,8 @@ const defaultLayouts: Layouts = {
     { i: "pollution", x: 0, y: 8, w: 6, h: 3 },
     { i: "power", x: 0, y: 11, w: 6, h: 3 },
     { i: "map", x: 0, y: 14, w: 6, h: 3 },
-    { i: "logs", x: 0, y: 17, w: 6, h: 4 },
+    { i: "microgreens", x: 0, y: 17, w: 6, h: 3 },
+    { i: "logs", x: 0, y: 20, w: 6, h: 4 },
   ]
 }
 
@@ -174,6 +178,18 @@ export function DashboardGrid({ children, visibleSections = {} }: DashboardGridP
             </div>
             <div className="flex-1 overflow-hidden relative">
                <div className="absolute inset-0">{children.map}</div>
+            </div>
+          </div>
+        )}
+
+        {isVisible("microgreens") && (
+          <div key="microgreens" className="bg-background border border-border rounded-lg shadow-sm flex flex-col overflow-hidden">
+            <div className="h-6 bg-muted/40 border-b border-border flex items-center px-2 cursor-grab active:cursor-grabbing drag-handle hover:bg-muted/60 transition-colors">
+              <GripVertical className="w-3 h-3 text-muted-foreground mr-2" />
+              <span className="text-[10px] font-mono text-muted-foreground uppercase">Microgreens</span>
+            </div>
+            <div className="flex-1 overflow-auto bg-card">
+               <div className="h-full">{children.microgreens}</div>
             </div>
           </div>
         )}
