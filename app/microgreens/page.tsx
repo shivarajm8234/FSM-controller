@@ -239,6 +239,42 @@ export default function MicrogreensPage() {
         setShowPrediction(true)
     }
 
+    const handleExport = () => {
+        const dataToExport = {
+            timestamp: new Date().toISOString(),
+            aqiHistory: aqiHistory,
+            predictionData: predictionData,
+            currentSensorData: sensorData,
+            activeCrops: myCrops.map(id => {
+                const crop = cropDatabase.find(c => c.id === id)
+                if (!crop) return null
+                // Remove icon (React element) to avoid cyclic reference
+                const { icon, ...cropData } = crop
+                return cropData
+            }).filter(Boolean),
+            thresholds: thresholds,
+            metrics: {
+                totalPurification: totalPurification,
+                totalVocRemoval: totalVocRemoval,
+                indoorAQI: indoorAQI,
+                outdoorAQI: aqi,
+                currentReduction: currentReduction,
+                currentVocReduction: currentVocReduction,
+                efficiency: efficiency
+            }
+        }
+
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+            JSON.stringify(dataToExport, null, 2)
+        )}`
+        const link = document.createElement("a")
+        link.href = jsonString
+        link.download = `microgreens_data_${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
+
   // 1️⃣ Daily AQI → Food Suggestion Logic (Updated with Time & Growth)
   const getNutritionAdvice = () => {
     // Current Sim Day (Default to mid-growth for FSM mode)
