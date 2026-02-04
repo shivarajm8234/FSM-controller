@@ -21,6 +21,7 @@ interface MicrogreensGridProps {
     library: ReactNode
     fsm: ReactNode
     garden: ReactNode
+    comparison: ReactNode
   }
 }
 
@@ -30,9 +31,10 @@ const defaultLayouts: Layouts = {
     { i: "impact", x: 0, y: 0, w: 3, h: 8 },
     { i: "environment", x: 0, y: 8, w: 3, h: 6 },
     { i: "intelligence", x: 0, y: 14, w: 3, h: 6 },
-    { i: "library", x: 0, y: 20, w: 3, h: 8 },
-    { i: "fsm", x: 3, y: 0, w: 9, h: 8 },
-    { i: "garden", x: 3, y: 8, w: 9, h: 12 },
+    { i: 'library', x: 0, y: 7, w: 4, h: 6 },
+    { i: 'fsm', x: 4, y: 7, w: 4, h: 6 },
+    { i: 'garden', x: 8, y: 7, w: 4, h: 6 },
+    { i: 'comparison', x: 0, y: 13, w: 12, h: 5 },
   ],
   md: [
     { i: "impact", x: 0, y: 0, w: 5, h: 8 },
@@ -141,6 +143,14 @@ export function MicrogreensGrid({ widgets }: MicrogreensGridProps) {
           </div>
         </div>
 
+        <div key="comparison" className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl overflow-hidden flex flex-col hover:border-emerald-500/30 transition-colors">
+            <div className="px-3 py-2 border-b border-border/50 bg-muted/20 flex justify-between items-center handle cursor-move">
+             <span className="text-[10px] font-mono text-muted-foreground uppercase">Indoor vs Outdoor Analysis</span>
+          </div>
+          <div className="flex-1 overflow-auto bg-card p-2">
+              <div className="h-full">{widgets.comparison}</div>
+          </div>
+        </div>
       </ResponsiveGrid>
     </div>
   )

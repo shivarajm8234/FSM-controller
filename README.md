@@ -7,6 +7,7 @@ A real-time dashboard for monitoring and controlling IoT nodes using a Finite St
 - **Real-Time Visualization**:  View live data from IoT sensors via MQTT.
 - **State Monitoring**: Track the current FSM state of the device.
 - **Interactive Control**: Send commands to the device directly from the dashboard.
+- **Microgreens Integration**: Digital twin simulation of indoor air purification using various plant types (VOC/AQI reduction).
 - **Event Logging**: Log critical device events and errors.
 - **Responsive Design**: Built with Next.js and Tailwind CSS for a seamless experience on all devices.
 - **Firebase Integration**: Hosted on Firebase with Firestore integration for persistent data (planned/implemented).

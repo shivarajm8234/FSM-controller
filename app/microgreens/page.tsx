@@ -2,9 +2,9 @@
 
 import { MicrogreensGrid } from "@/components/microgreens-grid"
 import { useFSMController } from "@/hooks/use-fsm-controller"
-import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight, X, Activity, TrendingUp, PlusSquare } from "lucide-react"
+import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight, X, Activity, TrendingUp, PlusSquare, Download } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, BarChart, Bar, Legend } from 'recharts'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -75,9 +75,21 @@ export default function MicrogreensPage() {
       purification: 0.5,
       mechanism: ""
   })
+  const [formError, setFormError] = useState("")
 
   // Add New Crop Handler
   const handleAddCrop = () => {
+      // Validation
+      if (!newCrop.name.trim()) {
+          setFormError("Crop name is required")
+          return
+      }
+      if (newCrop.purification < 0 || newCrop.idealTemp < 0 || newCrop.idealHum < 0) {
+          setFormError("Values cannot be negative")
+          return
+      }
+      setFormError("")
+
       const id = newCrop.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString().slice(-4)
       const entry = {
           id,
@@ -322,9 +334,13 @@ export default function MicrogreensPage() {
                 </div>
                 <Link href="/">
                     <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-zinc-900 dark:hover:text-white">
-                        Return to Monitor
+                        Manual Control
                     </Button>
                 </Link>
+                <Button variant="outline" size="sm" onClick={handleExport} className="h-9 gap-2 border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-emerald-500 hover:border-emerald-500/50">
+                    <Download className="w-4 h-4" />
+                    Export Data
+                </Button>
             </div>
         </header>
 
@@ -862,6 +878,35 @@ export default function MicrogreensPage() {
                     )}
                   </div>
             ),
+            comparison: (
+                <Card className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 relative overflow-hidden shadow-sm h-full flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                             <Activity className="w-3 h-3 text-blue-500" />
+                             Pollutant Reduction Analysis
+                        </h3>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[
+                                { name: 'AQI', Outdoor: aqi, Indoor: indoorAQI },
+                                { name: 'VOC (µg)', Outdoor: 210, Indoor: Math.max(0, 210 - currentVocReduction) }
+                            ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                                <XAxis dataKey="name" tick={{fontSize: 10, fill: '#71717a'}} axisLine={false} tickLine={false} />
+                                <YAxis tick={{fontSize: 10, fill: '#71717a'}} axisLine={false} tickLine={false} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#18181b', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px' }}
+                                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                                />
+                                <Legend iconSize={8} wrapperStyle={{fontSize: '10px', paddingTop: '10px'}} />
+                                <Bar dataKey="Outdoor" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="Indoor" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+            )
           }} 
         />
 
@@ -952,6 +997,12 @@ export default function MicrogreensPage() {
                         Enter details for a new microgreen or plant to simulate its purification effects.
                     </DialogDescription>
                 </DialogHeader>
+                {formError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-3 py-2 rounded-md text-xs mb-2 flex items-center gap-2">
+                        <AlertTriangle className="w-3 h-3" />
+                        {formError}
+                    </div>
+                )}
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="name" className="text-right text-xs">Name</Label>

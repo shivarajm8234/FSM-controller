@@ -27,6 +27,12 @@ The FSM Controller is an Industrial IoT Platform that demonstrates a sophisticat
    - MQTT-based telemetry transmission
    - Automated data publishing during transmission states
    - Network health monitoring and retry mechanisms
+   
+5. **Microgreens Air Quality Module**
+   - **Digital Twin Simulation**: Models indoor air purification based on active plant life.
+   - **VOC & AQI Reduction**: Calculates pollutant removal based on specific crop properties (e.g., Radish, Sunflower).
+   - **Predictive Analytics**: Forecasts 5-day air quality trends based on current growth cycles.
+   - **Interactive Garden**: Allows users to manage a virtual garden and see real-time impact on indoor air.
 
 ## State Machine Design
 
@@ -96,6 +102,7 @@ Each state maintains precise power consumption metrics:
 - **Primary**: Sensor.community API for real environmental data
 - **Fallback**: Simulated data for demonstration purposes
 - **Update Frequency**: 500ms intervals for real-time responsiveness
+- **Microgreens Database**: Detailed botanical data including purification rates, VOC removal potential, and growth cycles.
 
 ## User Interface Features
 
