@@ -2,7 +2,7 @@
 
 import { MicrogreensGrid } from "@/components/microgreens-grid"
 import { useFSMController } from "@/hooks/use-fsm-controller"
-import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight } from "lucide-react"
+import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight, X, Activity, TrendingUp, PlusSquare } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
 import { Card } from "@/components/ui/card"
@@ -42,7 +42,7 @@ export default function MicrogreensPage() {
   // Real-time Indoor/Outdoor Config
   const [manualIndoor, setManualIndoor] = useState(false)
   const [showPrediction, setShowPrediction] = useState(false)
-  const [predictionData, setPredictionData] = useState<{ day: string, predicted: number }[]>([])
+  const [predictionData, setPredictionData] = useState<{ day: string, predicted: number, reducedVoc: number }[]>([])
 
   // Local History Tracking (Real-time)
   const [aqiHistory, setAqiHistory] = useState<{ time: string, indoor: number, outdoor: number, reduction: number }[]>([])
@@ -53,14 +53,14 @@ export default function MicrogreensPage() {
 
   // Extended Crop Database with Specific Needs & Purification Power
   const [cropDatabase, setCropDatabase] = useState([
-      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 30, harvestRange: "30-45", notes: "Very fast growth, early AQI impact starts ~Day 3", idealTemp: 22, idealHum: 50, purification: 0.8, mechanism: "High transpiration rate, fine leaf texture → effective PM2.5 dust capture.", icon: <Leaf className="w-4 h-4" /> },
-      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 60, harvestRange: "60-70", notes: "Slower start, stronger effect after leaf expansion", idealTemp: 20, idealHum: 60, purification: 0.65, mechanism: "Broad leaves enhance particulate deposition and CO₂ uptake.", icon: <Sprout className="w-4 h-4" /> },
-      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 70, harvestRange: "70-100", notes: "Large leaves → strongest AQI impact from Day 4 onward", idealTemp: 24, idealHum: 45, purification: 1.5, mechanism: "Large leaf surface area + strong photosynthesis → maximum particulate interaction.", icon: <Sun className="w-4 h-4" /> },
-      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 40, harvestRange: "30-50", notes: "Dense foliage, consistent mid-cycle impact", idealTemp: 21, idealHum: 55, purification: 1.0, mechanism: "Dense foliage, higher stomatal activity → moderate VOC and dust interaction.", icon: <Wind className="w-4 h-4" /> },
-      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 50, harvestRange: "50-70", notes: "Slower growth, stabilizing AQI role", idealTemp: 23, idealHum: 65, purification: 0.55, mechanism: "Moderate leaf area → supportive, stabilizing role.", icon: <Droplets className="w-4 h-4" /> },
+      { id: "radish", name: "Radish", level: "Beginner", indoorSafe: true, days: 30, harvestRange: "30-45", notes: "Very fast growth, early AQI impact starts ~Day 3", idealTemp: 22, idealHum: 50, purification: 1.0, vocRemovalMean: 2, vocPotential: "~1–3 µg/m³ VOC/day", vocMechanism: "VOC interaction + particulate surface deposition", mechanism: "High transpiration rate, fine leaf texture → effective PM2.5 dust capture.", icon: <Leaf className="w-4 h-4" /> },
+      { id: "pea", name: "Pea Shoots", level: "Beginner", indoorSafe: true, days: 60, harvestRange: "60-70", notes: "Slower start, stronger effect after leaf expansion", idealTemp: 20, idealHum: 60, purification: 2.0, vocRemovalMean: 3, vocPotential: "~2–4 µg/m³ VOC/day", vocMechanism: "VOC adsorption + larger leaf area", mechanism: "Broad leaves enhance particulate deposition and CO₂ uptake.", icon: <Sprout className="w-4 h-4" /> },
+      { id: "sunflower", name: "Sunflower", level: "Intermediate", indoorSafe: true, days: 70, harvestRange: "70-100", notes: "Large leaves → strongest AQI impact from Day 4 onward", idealTemp: 24, idealHum: 45, purification: 3.0, vocRemovalMean: 6, vocPotential: "~4–8 µg/m³ VOC/day", vocMechanism: "Larger leaves → more surface for deposition", mechanism: "Large leaf surface area + strong photosynthesis → maximum particulate interaction.", icon: <Sun className="w-4 h-4" /> },
+      { id: "mustard", name: "Mustard", level: "Beginner", indoorSafe: true, days: 40, harvestRange: "30-50", notes: "Dense foliage, consistent mid-cycle impact", idealTemp: 21, idealHum: 55, purification: 2.5, vocRemovalMean: 4.5, vocPotential: "~3–6 µg/m³ VOC/day", vocMechanism: "Dense foliage → VOC/PM interaction", mechanism: "Dense foliage, higher stomatal activity → moderate VOC and dust interaction.", icon: <Wind className="w-4 h-4" /> },
+      { id: "beet", name: "Beet", level: "Advanced", indoorSafe: true, days: 50, harvestRange: "50-70", notes: "Slower growth, stabilizing AQI role", idealTemp: 23, idealHum: 65, purification: 1.0, vocRemovalMean: 2, vocPotential: "~1–3 µg/m³ VOC/day", vocMechanism: "Moderate foliage → deposit removal", mechanism: "Moderate leaf area → supportive, stabilizing role.", icon: <Droplets className="w-4 h-4" /> },
       // Outdoor Specific (High Durability)
-      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 45, harvestRange: "45-60", notes: "Cooler-temp crop, modest air-clean contribution", idealTemp: 15, idealHum: 70, purification: 0.45, mechanism: "Lower transpiration, smaller leaves → mild particulate trapping.", icon: <CloudRain className="w-4 h-4" /> },
-      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 40, harvestRange: "40-50", notes: "Slow but steady growth, late-cycle effect", idealTemp: 16, idealHum: 80, purification: 0.55, mechanism: "Steady photosynthesis, moderate leaf density → consistent but limited impact.", icon: <ShieldCheck className="w-4 h-4" /> },
+      { id: "kale", name: "Red Russian Kale", level: "Beginner", indoorSafe: false, days: 45, harvestRange: "45-60", notes: "Cooler-temp crop, modest air-clean contribution", idealTemp: 15, idealHum: 70, purification: 2.0, vocRemovalMean: 3, vocPotential: "~2–4 µg/m³ VOC/day", vocMechanism: "Brassica group, moderate leaf density", mechanism: "Lower transpiration, smaller leaves → mild particulate trapping.", icon: <CloudRain className="w-4 h-4" /> },
+      { id: "spinach", name: "Hardy Spinach", level: "Beginner", indoorSafe: false, days: 40, harvestRange: "40-50", notes: "Slow but steady growth, late-cycle effect", idealTemp: 16, idealHum: 80, purification: 2.0, vocRemovalMean: 3, vocPotential: "~2–4 µg/m³ VOC/day", vocMechanism: "Moderate leaf density", mechanism: "Steady photosynthesis, moderate leaf density → consistent but limited impact.", icon: <ShieldCheck className="w-4 h-4" /> },
   ])
 
   // New Crop State
@@ -105,6 +105,11 @@ export default function MicrogreensPage() {
       const crop = cropDatabase.find(c => c.id === id)
       return acc + (crop?.purification || 0)
   }, 0)
+
+  const totalVocRemoval = myCrops.reduce((acc, id) => {
+      const crop = cropDatabase.find(c => c.id === id)
+      return acc + ((crop as any)?.vocRemovalMean || 0)
+  }, 0)
   
   // Threshold State
   const [thresholds, setThresholds] = useState({
@@ -141,6 +146,7 @@ export default function MicrogreensPage() {
   
   // Total Reduction
   const currentReduction = totalPurification * efficiency
+  const currentVocReduction = totalVocRemoval * efficiency
   
   // Direct Indoor AQI Calculation
   // If we have crops, we reduce. If we don't, Indoor = Outdoor.
@@ -156,20 +162,23 @@ export default function MicrogreensPage() {
             const now = new Date()
             const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
             
-            // Only add point if time changed or it's been a while? 
-            // Just add every 5 seconds for "Live" feel or 1 minute.
-            // Let's do 5 seconds for demo feel.
+            // Simulating VOC baseline around 200 + random noise
+            // Reduce by currentVocReduction
+            const baseVoc = 200 + (Math.random() * 20 - 10)
+            const indoorVoc = Math.max(0, baseVoc - currentVocReduction)
+
             const newPoint = { 
                 time: timeStr, 
                 indoor: indoorAQI, 
                 outdoor: aqi,
-                reduction: Number((aqi - indoorAQI).toFixed(1))
+                reduction: Number((aqi - indoorAQI).toFixed(1)),
+                voc: Number(indoorVoc.toFixed(1))
             }
             return [...prev, newPoint].slice(-60) // Keep last 60 points
         })
       }, 5000)
       return () => clearInterval(timer)
-  }, [indoorAQI, aqi])
+  }, [indoorAQI, aqi, currentVocReduction])
 
   // Automatic "Force Indoor" Safety Logic
   // If conditions are dangerous (reason !== "") AND we have crops that need protection ("BRING INSIDE" status),
@@ -201,17 +210,18 @@ export default function MicrogreensPage() {
     // Predict Next 5 Days (Cumulative Impact)
     const generatePrediction = () => {
         const data = []
-        // Start with current
-        data.push({ day: 'Today', predicted: aqi, original: aqi })
-        
         let currentLevel = aqi
+        let currentVoc = 210 // Baseline VOC
+        
+        // Start with current
+        data.push({ day: 'Today', predicted: aqi, reducedVoc: currentVoc })
+        
         for (let i = 1; i <= 5; i++) {
-             // Simulate non-linear decay (effectiveness decreases as air gets cleaner)
-             // Reduction per step = current_reduction but scaled slightly by how "dirty" the air still is (optional physics)
-             // simplified: uniform reduction is fine, but let's make it robust
+             // Simulate non-linear decay
              currentLevel = Math.max(0, currentLevel - currentReduction)
+             currentVoc = Math.max(0, currentVoc - currentVocReduction)
              
-             data.push({ day: `Day +${i}`, predicted: Number(currentLevel.toFixed(1)) })
+             data.push({ day: `Day +${i}`, predicted: Number(currentLevel.toFixed(1)), reducedVoc: Number(currentVoc.toFixed(1)) })
         }
         setPredictionData(data)
         setShowPrediction(true)
@@ -280,7 +290,7 @@ export default function MicrogreensPage() {
   if (!mounted) return null
   
   return (
-    <div className="h-screen w-full bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white p-4 font-mono overflow-hidden selection:bg-emerald-500/30 transition-colors duration-300 flex flex-col">
+    <div className="h-screen w-full bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white p-4 font-mono overflow-auto selection:bg-emerald-500/30 transition-colors duration-300 flex flex-col">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-zinc-200 dark:border-white/10 pb-4">
             <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.2)]">
@@ -318,8 +328,7 @@ export default function MicrogreensPage() {
             </div>
         </header>
 
-        <MicrogreensGrid>
-          {{
+        <MicrogreensGrid widgets={{
             impact: (
                  <Card 
                     className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 relative overflow-hidden shadow-sm cursor-pointer hover:border-emerald-500/50 transition-colors group"
@@ -422,7 +431,7 @@ export default function MicrogreensPage() {
                  <Card className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 shadow-sm relative overflow-hidden flex-1">
                      <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <ActivityIcon className="w-3 h-3 text-blue-500" />
+                        <Activity className="w-3 h-3 text-blue-500" />
                             Live Environment & Limits
                         </h3>
                         <div className="flex items-center gap-2">
@@ -853,15 +862,15 @@ export default function MicrogreensPage() {
                     )}
                   </div>
             ),
-          }}
-        </MicrogreensGrid>
+          }} 
+        />
 
         {/* Prediction Modal */}
         <Dialog open={showPrediction} onOpenChange={setShowPrediction}>
             <DialogContent className="bg-zinc-900 border-white/10 text-white sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <TrendingUpIcon className="w-5 h-5 text-emerald-500" />
+                        <TrendingUp className="w-5 h-5 text-emerald-500" />
                         5-Day AQI Forecast
                     </DialogTitle>
                     <DialogDescription className="text-zinc-400 text-xs">
@@ -908,6 +917,15 @@ export default function MicrogreensPage() {
                                 strokeWidth={2}
                                 fillOpacity={1} 
                                 fill="url(#colorPred)" 
+                            />
+                            <Area 
+                                type="monotone" 
+                                dataKey="reducedVoc" 
+                                name="Projected VOC" 
+                                stroke="#3b82f6" 
+                                strokeWidth={2}
+                                strokeDasharray="4 4"
+                                fillOpacity={0} 
                                 animationDuration={1500}
                             />
                         </AreaChart>
@@ -1001,57 +1019,3 @@ export default function MicrogreensPage() {
     </div>
   )
 }
-
-// Icon Components
-function PlusSquare(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
-  )
-}
-
-function X(props: any) {
-    return (
-      <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>
-    )
-}
-
-function TrendingUpIcon(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-  )
-}
-
-function Plus(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-  )
-}
-
-function ShieldAlert(props: any) {
-    return (
-      <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
-    )
-}
-
-
-
-
-
-function ActivityIcon(props: any) {
-    return (
-      <svg
-        {...props}
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-      </svg>
-    )
-  }
