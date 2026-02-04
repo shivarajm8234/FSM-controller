@@ -4,7 +4,6 @@ import { MicrogreensGrid } from "@/components/microgreens-grid"
 import { useFSMController } from "@/hooks/use-fsm-controller"
 import { Bug, CloudRain, Leaf, Power, Radio, RefreshCw, Zap, Sprout, Wind, Droplets, Sun, AlertTriangle, ShieldCheck, HeartPulse, Utensils, Info, Moon, CheckCircle, ArrowRight, X, Activity, TrendingUp, PlusSquare, Download } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, BarChart, Bar, Legend } from 'recharts'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +20,8 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { FSMDiagram } from "@/components/fsm-diagram"
 import { FSMState, StateConfig } from "@/lib/fsm-types"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, BarChart, Bar, Legend } from 'recharts'
 
 export default function MicrogreensPage() {
   const { 
@@ -44,8 +44,8 @@ export default function MicrogreensPage() {
   const [showPrediction, setShowPrediction] = useState(false)
   const [predictionData, setPredictionData] = useState<{ day: string, predicted: number, reducedVoc: number }[]>([])
 
-  // Local History Tracking (Real-time)
-  const [aqiHistory, setAqiHistory] = useState<{ time: string, indoor: number, outdoor: number, reduction: number }[]>([])
+  // Local History Tracking (Real-time) - Initialize with current data
+  const [aqiHistory, setAqiHistory] = useState<{ time: string, indoor: number, outdoor: number, reduction: number, voc?: number }[]>([])
 
   useEffect(() => {
     setMounted(true)
@@ -112,16 +112,21 @@ export default function MicrogreensPage() {
       })
   }
 
-  // Calculate Impact 
-  const totalPurification = myCrops.reduce((acc, id) => {
-      const crop = cropDatabase.find(c => c.id === id)
-      return acc + (crop?.purification || 0)
-  }, 0)
+  
+  // Memoize expensive calculations for performance
+  const totalPurification = useMemo(() => {
+      return myCrops.reduce((acc, id) => {
+          const crop = cropDatabase.find(c => c.id === id)
+          return acc + (crop?.purification || 0)
+      }, 0)
+  }, [myCrops, cropDatabase])
 
-  const totalVocRemoval = myCrops.reduce((acc, id) => {
-      const crop = cropDatabase.find(c => c.id === id)
-      return acc + ((crop as any)?.vocRemovalMean || 0)
-  }, 0)
+  const totalVocRemoval = useMemo(() => {
+      return myCrops.reduce((acc, id) => {
+          const crop = cropDatabase.find(c => c.id === id)
+          return acc + ((crop as any)?.vocRemovalMean || 0)
+      }, 0)
+  }, [myCrops, cropDatabase])
   
   // Threshold State
   const [thresholds, setThresholds] = useState({
@@ -132,7 +137,8 @@ export default function MicrogreensPage() {
       maxAQI: 100
   })
 
-  // 2️⃣ Indoor Safety Logic (Multi-Factor & Customizable)
+  
+  // Use real MQTT sensor data (already connected via useFSMController)
   const temp = sensorData?.temperature ?? 22
   const hum = sensorData?.humidity ?? 50
   const aqi = sensorData?.aqi ?? 0
@@ -167,7 +173,28 @@ export default function MicrogreensPage() {
   const currentDay = 5 // Static day for FSM demo
   const indoorAQI = Math.max(0, Number((aqi - wallProtection - currentReduction).toFixed(1)))
   
-  // Track History (Real-time updates)
+  // Initialize history with current data on mount
+  useEffect(() => {
+    if (aqiHistory.length === 0 && aqi > 0) {
+      const now = new Date()
+      const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
+      const baseVoc = 200
+      const indoorVoc = Math.max(0, baseVoc - currentVocReduction)
+      
+      console.log('🌱 Initializing chart data:', { aqi, indoorAQI, currentReduction, currentVocReduction })
+      
+      setAqiHistory([{
+        time: timeStr,
+        indoor: indoorAQI,
+        outdoor: aqi,
+        reduction: Number((aqi - indoorAQI).toFixed(1)),
+        voc: Number(indoorVoc.toFixed(1))
+      }])
+    }
+  }, [aqi, indoorAQI, currentReduction, currentVocReduction])
+  
+  
+  // Debounced history tracking (Real-time updates every 5 seconds)
   useEffect(() => {
       const timer = setInterval(() => {
         setAqiHistory(prev => {
@@ -186,9 +213,12 @@ export default function MicrogreensPage() {
                 reduction: Number((aqi - indoorAQI).toFixed(1)),
                 voc: Number(indoorVoc.toFixed(1))
             }
-            return [...prev, newPoint].slice(-60) // Keep last 60 points
+            
+            console.log('📊 Chart update:', newPoint, 'Total points:', prev.length + 1)
+            
+            return [...prev, newPoint].slice(-60) // Keep last 60 points (5 minutes)
         })
-      }, 5000)
+      }, 5000) // Update every 5 seconds
       return () => clearInterval(timer)
   }, [indoorAQI, aqi, currentVocReduction])
 
@@ -219,27 +249,28 @@ export default function MicrogreensPage() {
       transitionTo(state)
   }
 
-    // Predict Next 5 Days (Cumulative Impact)
-    const generatePrediction = () => {
-        const data = []
-        let currentLevel = aqi
-        let currentVoc = 210 // Baseline VOC
-        
-        // Start with current
-        data.push({ day: 'Today', predicted: aqi, reducedVoc: currentVoc })
-        
-        for (let i = 1; i <= 5; i++) {
-             // Simulate non-linear decay
-             currentLevel = Math.max(0, currentLevel - currentReduction)
-             currentVoc = Math.max(0, currentVoc - currentVocReduction)
-             
-             data.push({ day: `Day +${i}`, predicted: Number(currentLevel.toFixed(1)), reducedVoc: Number(currentVoc.toFixed(1)) })
-        }
-        setPredictionData(data)
-        setShowPrediction(true)
-    }
+  // Memoized prediction generator
+  const generatePrediction = useCallback(() => {
+      const data = []
+      let currentLevel = aqi
+      let currentVoc = 210 // Baseline VOC
+      
+      // Start with current
+      data.push({ day: 'Today', predicted: aqi, reducedVoc: currentVoc })
+      
+      for (let i = 1; i <= 5; i++) {
+           // Simulate non-linear decay
+           currentLevel = Math.max(0, currentLevel - currentReduction)
+           currentVoc = Math.max(0, currentVoc - currentVocReduction)
+           
+           data.push({ day: `Day +${i}`, predicted: Number(currentLevel.toFixed(1)), reducedVoc: Number(currentVoc.toFixed(1)) })
+      }
+      setPredictionData(data)
+      setShowPrediction(true)
+  }, [aqi, currentReduction, currentVocReduction])
 
-    const handleExport = () => {
+  // Memoized export handler
+  const handleExport = useCallback(() => {
         const dataToExport = {
             timestamp: new Date().toISOString(),
             aqiHistory: aqiHistory,
@@ -273,7 +304,7 @@ export default function MicrogreensPage() {
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
-    }
+    }, [aqiHistory, predictionData, sensorData, myCrops, cropDatabase, thresholds, totalPurification, totalVocRemoval, indoorAQI, aqi, currentReduction, currentVocReduction, efficiency])
 
   // 1️⃣ Daily AQI → Food Suggestion Logic (Updated with Time & Growth)
   const getNutritionAdvice = () => {
@@ -399,6 +430,7 @@ export default function MicrogreensPage() {
                     <div className="space-y-4">
                         {/* Timeline Graph */}
                         <div className="h-[120px] w-full mt-2">
+                            {aqiHistory.length > 0 ? (
                              <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={aqiHistory}>
                                     <defs>
@@ -440,6 +472,15 @@ export default function MicrogreensPage() {
                                     <Area type="monotone" dataKey="indoor" stroke="#10b981" fillOpacity={1} fill="url(#colorIndoor)" strokeWidth={2} />
                                 </AreaChart>
                              </ResponsiveContainer>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-xs text-muted-foreground border border-dashed border-zinc-700 rounded">
+                                    <div className="text-center">
+                                        <Activity className="w-4 h-4 mx-auto mb-1 animate-pulse" />
+                                        <p>Collecting data...</p>
+                                        <p className="text-[10px] opacity-60">Updates every 5 seconds</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-between items-end border-t border-zinc-100 dark:border-white/5 pt-2">
@@ -914,7 +955,15 @@ export default function MicrogreensPage() {
                     )}
                   </div>
             ),
-            comparison: (
+            comparison: (() => {
+                const comparisonData = [
+                    { name: 'AQI', Outdoor: aqi, Indoor: indoorAQI },
+                    { name: 'VOC (µg)', Outdoor: 210, Indoor: Math.max(0, 210 - currentVocReduction) }
+                ]
+                
+                console.log('📊 Comparison widget data:', comparisonData)
+                
+                return (
                 <Card className="p-4 bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 relative overflow-hidden shadow-sm h-full flex flex-col">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -924,10 +973,7 @@ export default function MicrogreensPage() {
                     </div>
                     <div className="flex-1 min-h-0">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={[
-                                { name: 'AQI', Outdoor: aqi, Indoor: indoorAQI },
-                                { name: 'VOC (µg)', Outdoor: 210, Indoor: Math.max(0, 210 - currentVocReduction) }
-                            ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
                                 <XAxis dataKey="name" tick={{fontSize: 10, fill: '#71717a'}} axisLine={false} tickLine={false} />
                                 <YAxis tick={{fontSize: 10, fill: '#71717a'}} axisLine={false} tickLine={false} />
@@ -942,7 +988,8 @@ export default function MicrogreensPage() {
                         </ResponsiveContainer>
                     </div>
                 </Card>
-            )
+                )
+            })()
           }} 
         />
 
