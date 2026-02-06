@@ -425,6 +425,12 @@ export default function MicrogreensPage() {
                             <Leaf className="w-3 h-3 text-emerald-500" />
                             Air Purification Sim
                         </h3>
+                        {currentState === "TRANSMIT" && myCrops.length > 0 && (
+                            <Badge className="h-5 px-2 bg-emerald-500/10 border-emerald-500/50 text-emerald-500 text-[9px] flex items-center gap-1 animate-pulse">
+                                <Radio className="w-2.5 h-2.5" />
+                                TX: Microgreens Data
+                            </Badge>
+                        )}
                     </div>
                     
                     <div className="space-y-4">

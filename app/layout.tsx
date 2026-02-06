@@ -53,7 +53,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-sans antialiased" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <body className="font-sans antialiased" style={{ fontFamily: "'Inter', sans-serif" }} suppressHydrationWarning>
         {children}
         <Analytics />
       </body>

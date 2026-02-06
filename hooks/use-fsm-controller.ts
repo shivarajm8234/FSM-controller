@@ -93,10 +93,12 @@ export function useFSMController() {
   })
   const [lastTxStats, setLastTxStats] = useState<TransmissionStats | null>(null)
 
+
   const stateTimerRef = useRef<NodeJS.Timeout | null>(null)
   const sensorTimerRef = useRef<NodeJS.Timeout | null>(null)
   const powerTimerRef = useRef<NodeJS.Timeout | null>(null)
   const realBatteryRef = useRef<number | null>(null)
+
 
   const addEvent = useCallback((fromState: FSMState | null, toState: FSMState, message: string) => {
     setEventLog((prev) => [
@@ -133,23 +135,27 @@ export function useFSMController() {
           const data = await res.json()
           if (typeof data.level === 'number') {
              realBatteryRef.current = data.level
-             console.log("Real battery (Server API):", data.level)
+             console.log("Real battery level:", data.level + "%")
+          } else if (data.level === null) {
+             // No battery detected (desktop machine)
+             console.log("No battery detected - using simulation")
+             realBatteryRef.current = null
           }
         }
       } catch (e) {
-        console.error("Failed to fetch battery status")
+        console.error("Failed to fetch battery status:", e)
       }
     }
 
     fetchBattery()
-    // Poll every 5 seconds to avoid spamming the file system
+    // Poll every 5 seconds to get updated battery level
     const interval = setInterval(fetchBattery, 5000) 
     
     return () => clearInterval(interval)
   }, [])
 
-
   const sensorDataRef = useRef(sensorData)
+
 
   // Keep ref in sync with state to access latest data in timers without resetting them
   useEffect(() => {
@@ -230,9 +236,13 @@ export function useFSMController() {
                   }
                   break
                 case "TRANSMIT":
-                  // Wait for MQTT callback to trigger transition
-                  // If stuck for too long, watchdog will catch it in next effect or we can add a safety timeout here
-                  // For now, we rely on the useEffect below to transition us
+                  // SAFETY CHECK: Abort transmission if battery becomes critical during TX
+                  if (currentBattery < 10) {
+                    nextState = "SLEEP"
+                    message = "Battery critical during TX - Aborting transmission to save power"
+                  }
+                  // Otherwise, wait for MQTT callback to trigger transition
+                  // The useEffect below will handle the actual transmission and transition
                   break
                 case "ERROR":
                   nextState = "REPAIR"
@@ -282,7 +292,7 @@ export function useFSMController() {
         case "PROCESS":
           return 1000
         case "TRANSMIT":
-          return 3000 // Increased from 2000ms to 3000ms for better MQTT transmission
+          return 800 // Optimized for fast MQTT transmission
         case "ERROR":
           return 1000
         case "REPAIR":
@@ -484,7 +494,7 @@ export function useFSMController() {
           // Use real device battery if available AND in normal mode
           newBattery = realBatteryRef.current
         } else {
-          // Fallback to simulation
+          // Fallback to simulation (no battery detected or special simulation mode)
           newBattery = isCharging ? Math.min(100, prev.battery + 0.5) : Math.max(0, prev.battery - powerDrain)
         }
         
@@ -566,8 +576,8 @@ export function useFSMController() {
             txStartTime: new Date(startTime).toISOString(), // Human readable format
           }
           
-          // Add artificial network latency for realism (20-150ms)
-          const networkLatency = Math.floor(Math.random() * 130) + 20
+          // Optimized network latency for faster transmission (10-50ms)
+          const networkLatency = Math.floor(Math.random() * 40) + 10
           await new Promise(resolve => setTimeout(resolve, networkLatency))
 
           await publishData("adld/sensor/pollution_data", criticalPayload)
@@ -587,10 +597,29 @@ export function useFSMController() {
             preFullTxTime: `${Date.now() - startTime}ms`,
           }
 
-          // Additional latency for full payload (larger size)
-          await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 50) + 10))
+          // Optimized latency for full payload (5-20ms)
+          await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 15) + 5))
           
           const success = await publishData("adld/sensor/pollution_data", fullPayload)
+          
+          // Also publish microgreens-specific data if crops are active
+          if (myCrops.length > 0) {
+            const microgreensPayload = {
+              timestamp: sensorData.timestamp,
+              outdoorAQI: sensorData.aqi,
+              pm25: sensorData.pm25,
+              pm10: sensorData.pm10,
+              temperature: sensorData.temperature,
+              humidity: sensorData.humidity,
+              activeCrops: myCrops,
+              cropCount: myCrops.length,
+              fsmState: currentState,
+              type: "Microgreens Air Quality Monitor",
+              source: "Smart Growing System v1.0"
+            }
+            await publishData("adld/microgreens/air_quality", microgreensPayload)
+            console.log(`🌱 Microgreens data transmitted (${myCrops.length} crops)`)
+          }
           const totalDuration = Date.now() - startTime
           
           if (success) {
@@ -609,7 +638,7 @@ export function useFSMController() {
           console.error("❌ MQTT transmission error:", error)
           transitionTo("ERROR", "MQTT transmission critical error")
         }
-      }, 500)
+      }, 100) // Fast transmission start
       
       return () => clearTimeout(transmitTimer)
     }

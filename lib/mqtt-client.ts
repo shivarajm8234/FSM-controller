@@ -103,21 +103,21 @@ export const publishData = async (topic: string, message: any): Promise<boolean>
     }
 
     let attempts = 0
-    const maxAttempts = 20 // 20 * 500ms = 10 seconds
+    const maxAttempts = 50 // 50 * 100ms = 5 seconds max wait
     
     const checkConnection = () => {
       attempts++
       if (mqttClient?.connected) {
         resolve(true)
       } else if (attempts < maxAttempts) {
-        setTimeout(checkConnection, 500)
+        setTimeout(checkConnection, 100) // Check every 100ms instead of 500ms
       } else {
         console.error("MQTT client failed to connect within timeout. Cannot publish.")
         resolve(false)
       }
     }
     
-    setTimeout(checkConnection, 100)
+    setTimeout(checkConnection, 50) // Start checking after 50ms
   })
 
   if (!isConnected || !mqttClient) {

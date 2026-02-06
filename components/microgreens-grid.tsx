@@ -22,6 +22,7 @@ interface MicrogreensGridProps {
     fsm: ReactNode
     garden: ReactNode
     comparison: ReactNode
+    simulation: ReactNode
   }
 }
 
@@ -35,6 +36,7 @@ const defaultLayouts: Layouts = {
     { i: 'fsm', x: 4, y: 7, w: 4, h: 6 },
     { i: 'garden', x: 8, y: 7, w: 4, h: 6 },
     { i: 'comparison', x: 0, y: 13, w: 12, h: 5 },
+    { i: 'simulation', x: 0, y: 18, w: 12, h: 8 },
   ],
   md: [
     { i: "impact", x: 0, y: 0, w: 5, h: 8 },
@@ -43,6 +45,7 @@ const defaultLayouts: Layouts = {
     { i: "garden", x: 0, y: 16, w: 10, h: 12 },
     { i: "intelligence", x: 0, y: 28, w: 5, h: 8 },
     { i: "library", x: 5, y: 28, w: 5, h: 8 },
+    { i: "simulation", x: 0, y: 36, w: 10, h: 8 },
   ],
   sm: [
     { i: "impact", x: 0, y: 0, w: 6, h: 8 },
@@ -51,6 +54,7 @@ const defaultLayouts: Layouts = {
     { i: "garden", x: 0, y: 24, w: 6, h: 12 },
     { i: "intelligence", x: 0, y: 36, w: 6, h: 8 },
     { i: "library", x: 0, y: 44, w: 6, h: 8 },
+    { i: "simulation", x: 0, y: 52, w: 6, h: 8 },
   ]
 }
 
@@ -149,6 +153,15 @@ export function MicrogreensGrid({ widgets }: MicrogreensGridProps) {
           </div>
           <div className="flex-1 overflow-auto bg-card p-2">
               <div className="h-full">{widgets.comparison}</div>
+          </div>
+        </div>
+
+        <div key="simulation" className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl overflow-hidden flex flex-col hover:border-purple-500/30 transition-colors">
+            <div className="px-3 py-2 border-b border-border/50 bg-muted/20 flex justify-between items-center handle cursor-move">
+             <span className="text-[10px] font-mono text-muted-foreground uppercase">FSM Decision Simulation</span>
+          </div>
+          <div className="flex-1 overflow-auto bg-card p-2">
+              <div className="h-full">{widgets.simulation}</div>
           </div>
         </div>
       </ResponsiveGrid>
